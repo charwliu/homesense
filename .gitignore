@@ -15,3 +15,39 @@ __pycache__/
 /reference/control4/manual-text/
 /deployment/nanopc/private/
 /deployment/ngr/private/
+
+# Private field configurations, source inventories and acceptance artifacts.
+**/private/
+/config/import/
+/config/live/
+/config/scenes/
+/config/test/tcp485-vlan3.*.json
+/reference/manifest.json
+/reference/control4/hb-device-map.json
+/reference/control4/hb-module-addresses.txt
+/docs/evidence/
+/deployment/*/evidence/
+/deployment/*/[0-9]*.json
+/crates/homesense-import/tests/fixtures/study-events/
+/crates/homesensed/tests/fixtures/site-captures/
+
+# Local credentials, runtime databases and raw captures are never source assets.
+.env
+.env.*
+*.key
+*.p12
+*.pfx
+*.mobileprovision
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.pcap
+*.pcapng
+*.log
+
+# Site-specific legacy network snapshots remain local.
+/deployment/network/huawei-s5720s-ipv6-pbr-production.cli.example
+/deployment/network/huawei-s5720s-ipv6-pbr.cli.example
+/deployment/network/huawei-s5720s-ipv6-source-pbr.cli.example
+/deployment/network/ipv6-pbr-hairpin-a.nft.example
+/deployment/network/ipv6-pbr-hairpin-b.nft.example

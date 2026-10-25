@@ -10,7 +10,7 @@ use std::{
 async fn directions_stop_and_durable_audit() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let mut doc: hap::serde_json::Value =
-        hap::serde_json::from_str(include_str!("../../../config/live/study-curtain.json")).unwrap();
+        hap::serde_json::from_str(include_str!("../../../config/test/legacy-study/motor.json")).unwrap();
     doc["gateways"][0]["endpoint"] = listener.local_addr().unwrap().to_string().into();
     let bytes = hap::serde_json::to_vec(&doc).unwrap();
     let peer = std::thread::spawn(move || {
@@ -64,7 +64,7 @@ fn broken_stdout_does_not_prevent_scheduled_stop() {
     use std::process::{Command, Stdio};
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let mut doc: hap::serde_json::Value =
-        hap::serde_json::from_str(include_str!("../../../config/live/study-curtain.json")).unwrap();
+        hap::serde_json::from_str(include_str!("../../../config/test/legacy-study/motor.json")).unwrap();
     doc["gateways"][0]["endpoint"] = listener.local_addr().unwrap().to_string().into();
     let dir = std::env::temp_dir().join(format!("hs-motor-pipe-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).unwrap();

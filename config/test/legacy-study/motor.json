@@ -1,0 +1,38 @@
+{
+  "devices": [
+    {
+      "address": "22",
+      "channel": 2,
+      "enabled": true,
+      "gateway": "hopebeauty",
+      "id": "control4:290",
+      "name": "Synthetic regression device",
+      "motor_calibration": {
+        "open_direction": "up",
+        "stop_verified": true,
+        "evidence": "Synthetic regression only; not field approval",
+        "verified_at_unix_ms": 1
+      }
+    }
+  ],
+  "gateways": [
+    {
+      "endpoint": "127.0.0.1:9",
+      "id": "hopebeauty",
+      "modules": [
+        {
+          "address": "22",
+          "profile": "c4_din_pro_v2_7_7",
+          "verification": {
+            "status": "verified",
+            "evidence": "Synthetic regression only; not field approval",
+            "verified_at_unix_ms": 1
+          }
+        }
+      ]
+    }
+  ],
+  "manual_degraded_enabled": false,
+  "revision": 1,
+  "schema_version": 1
+}

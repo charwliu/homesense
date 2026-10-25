@@ -1,0 +1,77 @@
+{
+  "configuration": {
+    "devices": [
+      {
+        "address": "03",
+        "channel": 4,
+        "enabled": false,
+        "gateway": "hopebeauty",
+        "id": "control4:210",
+        "name": "Synthetic regression device"
+      },
+      {
+        "address": "07",
+        "channel": 6,
+        "enabled": false,
+        "gateway": "hopebeauty",
+        "id": "control4:278",
+        "name": "Synthetic regression device"
+      },
+      {
+        "address": "11",
+        "channel": 5,
+        "enabled": false,
+        "gateway": "hopebeauty",
+        "id": "control4:308",
+        "name": "Synthetic regression device"
+      },
+      {
+        "address": "12",
+        "channel": 4,
+        "enabled": false,
+        "gateway": "hopebeauty",
+        "id": "control4:336",
+        "name": "Synthetic regression device"
+      }
+    ],
+    "gateways": [
+      {
+        "endpoint": "127.0.0.1:9",
+        "id": "hopebeauty",
+        "modules": [
+          {
+            "address": "03",
+            "profile": "r8i8_din_pro_v2_7_7",
+            "verification": {
+              "status": "pending"
+            }
+          },
+          {
+            "address": "07",
+            "profile": "r8i8_din_pro_v2_7_7",
+            "verification": {
+              "status": "pending"
+            }
+          },
+          {
+            "address": "11",
+            "profile": "ad8_din_rs485_v2_2_1",
+            "verification": {
+              "status": "pending"
+            }
+          },
+          {
+            "address": "12",
+            "profile": "ad8_din_rs485_v2_2_1",
+            "verification": {
+              "status": "pending"
+            }
+          }
+        ]
+      }
+    ],
+    "manual_degraded_enabled": false,
+    "revision": 1,
+    "schema_version": 1
+  }
+}

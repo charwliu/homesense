@@ -148,7 +148,7 @@ fn recovery_preserves_stale_snapshot_and_rejects_prior_generation_feedback() {
 #[test]
 fn keypad_recovery_requires_fresh_events_and_never_replays_old_press() {
     let mut document: hap::serde_json::Value = hap::serde_json::from_slice(include_bytes!(
-        "../../../config/import/study-panel.draft.json"
+        "../../../config/test/legacy-study/panel.json"
     ))
     .unwrap();
     document["gateways"][0]["modules"][0]["verification"] =

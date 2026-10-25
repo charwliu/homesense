@@ -9,6 +9,7 @@
 - [定时备份](../deployment/nanopi/backup/README.md) · [完整状态回退](state-upgrade-rollback.md)
 - [网络架构](network-architecture.md) · [网络配置手册](network-configuration-runbook.md)
 - [接管结项与长期观察](control4-takeover-checklist.md)
+- [公开仓库内容与隐私检查](public-repository-policy.md)
 
 ## 功能与接口契约
 
@@ -27,7 +28,7 @@
 
 ## 历史档案
 
-[CHANGELOG](../CHANGELOG.md)、[App 更新记录](../apps/HomeSense/CHANGELOG.md)、`archive/` 和 `evidence/` 用于追溯历史决定、失败、测试与验收范围，不作为当前操作步骤。历史未勾选项不自动成为当前待办，也不批量改写为通过。
+[CHANGELOG](../CHANGELOG.md)、[App 更新记录](../apps/HomeSense/CHANGELOG.md)、`archive/` 和本机私有验收目录 用于追溯历史决定、失败、测试与验收范围，不作为当前操作步骤。历史未勾选项不自动成为当前待办，也不批量改写为通过。
 
 阶段记录：[A–C](archive/stages-a-c.md)、[D 书房](archive/stage-d-study.md)、[D 进度](archive/stage-d-progress.md)、[E 进度](archive/stage-e-progress.md)、[E 余项](archive/stage-e-remaining.md)、[D/E 审计](archive/de-completion-audit.md)。部署记录：[NanoPC 开发部署](archive/nanopc-development-deployment.md)、[NGR 阶段 E](archive/ngr-stage-e-deployment.md)、[NGR 双网模拟](archive/ngr-dual-vlan-simulation.md)。
 

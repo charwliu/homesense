@@ -4,10 +4,7 @@ mod test_cli;
 fn cli_keeps_fade_reference_and_definition_disabled_and_rejects_invalid_input() {
     let dir=std::env::temp_dir().join(format!("event-cli-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
     std::fs::create_dir(&dir).unwrap();
-    let evidence:serde_json::Value=serde_json::from_str(include_str!("../../../docs/evidence/stage-d-study/remaining-semantics.json")).unwrap();
-    let program=evidence["programs"].as_array().unwrap().iter().find(|v|v["owner"]=="event:417:2").unwrap();
-    let payload=program["evidence"][0]["source_xml"].as_str().unwrap();
-    let xml=format!("<event><deviceid>417</deviceid><eventid>2</eventid><codeitem><id>46</id><enabled>True</enabled><type>1</type><device>1</device><cmdcond>{payload}</cmdcond><subitems/></codeitem></event>");
+    let xml = include_str!("fixtures/synthetic-ramp.xml").to_owned();
     let event=dir.join("event.xml");let bindings=dir.join("bindings.json");
     std::fs::write(&event,&xml).unwrap();
     std::fs::write(&bindings,r#"{"1":{"device":"simulation:light","kind":"dimmer"}}"#).unwrap();

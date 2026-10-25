@@ -9,7 +9,7 @@ fn publication_requires_stopped_runtime_and_expected_revision_preserving_identit
     std::fs::write(directory.join("identity/sentinel"), b"identity unchanged").unwrap();
     let path = directory.join("runtime.sqlite");
     let mut store = homesense_storage::Store::open(&path).unwrap();
-    let document = include_bytes!("../../../config/live/study-switch.json");
+    let document = include_bytes!("../../../config/test/legacy-study/switch.json");
     store
         .publish_configuration(None, document, homesense_core::ExecutionContext::Live, &[])
         .unwrap();
@@ -66,7 +66,7 @@ fn automation_cli_publishes_both_documents_only_after_runtime_stops() {
     std::fs::write(directory.join("identity/sentinel"), b"keep pairing").unwrap();
     let path = directory.join("runtime.sqlite");
     let mut store = homesense_storage::Store::open(&path).unwrap();
-    let initial = include_bytes!("../../../config/live/study-switch.json");
+    let initial = include_bytes!("../../../config/test/legacy-study/switch.json");
     store
         .publish_configuration(None, initial, Live, &[])
         .unwrap();

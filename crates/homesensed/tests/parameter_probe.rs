@@ -13,13 +13,7 @@ fn panel(parameter: Parameter) -> Probe {
     .unwrap()
 }
 #[test]
-fn field_values_preserve_unknown_backlight_and_do_not_claim_led_colors() {
-    let records: hap::serde_json::Value = hap::serde_json::from_str(include_str!(
-        "fixtures/site-captures/panel-41-modes.json"
-    ))
-    .unwrap();
-    assert_eq!(records[0]["response"], "FF");
-    assert_eq!(records[1]["response"], "02");
+fn protocol_values_preserve_unknown_backlight_and_do_not_claim_led_colors() {
     assert_eq!(
         panel(Parameter::Backlight).interpret(&[255]),
         Reply::Unknown(255)

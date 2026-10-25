@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "manual_degraded_enabled": false,
+  "gateways": [
+    {
+      "id": "hopebeauty",
+      "endpoint": "127.0.0.1:9",
+      "modules": [
+        {
+          "address": "41",
+          "profile": "ts6_86_rs485_v2_6_5_6key",
+          "verification": {
+            "status": "pending"
+          }
+        }
+      ]
+    }
+  ],
+  "devices": [
+    {
+      "id": "control4:63:key:1",
+      "name": "Synthetic regression device",
+      "gateway": "hopebeauty",
+      "address": "41",
+      "channel": 1,
+      "enabled": false
+    },
+    {
+      "id": "control4:63:key:2",
+      "name": "Synthetic regression device",
+      "gateway": "hopebeauty",
+      "address": "41",
+      "channel": 2,
+      "enabled": false
+    },
+    {
+      "id": "control4:63:key:3",
+      "name": "Synthetic regression device",
+      "gateway": "hopebeauty",
+      "address": "41",
+      "channel": 3,
+      "enabled": false
+    },
+    {
+      "id": "control4:63:key:4",
+      "name": "Synthetic regression device",
+      "gateway": "hopebeauty",
+      "address": "41",
+      "channel": 4,
+      "enabled": false
+    },
+    {
+      "id": "control4:63:key:5",
+      "name": "Synthetic regression device",
+      "gateway": "hopebeauty",
+      "address": "41",
+      "channel": 5,
+      "enabled": false
+    },
+    {
+      "id": "control4:63:key:6",
+      "name": "Synthetic regression device",
+      "gateway": "hopebeauty",
+      "address": "41",
+      "channel": 6,
+      "enabled": false
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "devices": [
+    {
+      "address": "03",
+      "channel": 4,
+      "enabled": true,
+      "gateway": "hopebeauty",
+      "id": "control4:210",
+      "name": "Synthetic regression device"
+    }
+  ],
+  "gateways": [
+    {
+      "endpoint": "127.0.0.1:9",
+      "id": "hopebeauty",
+      "modules": [
+        {
+          "address": "03",
+          "profile": "r8i8_din_pro_v2_7_7",
+          "verification": {
+            "status": "verified",
+            "evidence": "Synthetic regression only; not field approval",
+            "verified_at_unix_ms": 1
+          }
+        }
+      ]
+    }
+  ],
+  "manual_degraded_enabled": false,
+  "revision": 1,
+  "schema_version": 1
+}

@@ -1,7 +1,7 @@
 use homesense_import::study::{Action, Evaluation, Rule, evaluate};
 fn rules() -> Vec<Rule> {
     let v: serde_json::Value =
-        serde_json::from_str(include_str!("../../../config/scenes/study.json")).unwrap();
+        serde_json::from_str(include_str!("../../../config/test/legacy-study/scenes.json")).unwrap();
     serde_json::from_value(v["rules"].clone()).unwrap()
 }
 #[test]
@@ -43,7 +43,7 @@ fn all_modes_keys_and_unknown_preserve_source_order() {
 #[test]
 fn three_scene_levels_and_confirmed_deactivation_are_exact() {
     let mut d: serde_json::Value =
-        serde_json::from_str(include_str!("../../../config/scenes/study.json")).unwrap();
+        serde_json::from_str(include_str!("../../../config/test/legacy-study/scenes.json")).unwrap();
     for (id, levels) in [
         ("10", [100, 0, 0, 100]),
         ("6", [100, 100, 100, 100]),

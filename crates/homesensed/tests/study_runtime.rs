@@ -19,7 +19,7 @@ impl Drop for Db {
 }
 fn database() -> Db {
     let mut d: hap::serde_json::Value = hap::serde_json::from_slice(include_bytes!(
-        "../../../config/import/study-lights.draft.json"
+        "../../../config/test/legacy-study/lights.json"
     ))
     .unwrap();
     let c = &mut d["configuration"];
@@ -63,7 +63,7 @@ fn runtime(a: &Admission, id: Uuid) -> StudyRuntime {
     StudyRuntime::new(
         a.clone(),
         id,
-        include_bytes!("../../../config/scenes/study.json"),
+        include_bytes!("../../../config/test/legacy-study/scenes.json"),
         TimingPolicy::ModuleNative,
     )
     .unwrap()

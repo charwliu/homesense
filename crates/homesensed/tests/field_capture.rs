@@ -1,23 +1,15 @@
-//! Replay immutable site evidence without a physical connection or control grant.
+//! Synthetic protocol vectors without a physical connection or control grant.
 use hb_protocol::{Decoded, Registry, StreamDecoder};
 use homesense_core::{BusAddress, ModuleSpec, Observation, ProtocolProfile, Verification};
 #[test]
-fn recorded_ts6_events_survive_every_fragment_size_without_losing_releases() {
-    let rows: Vec<hap::serde_json::Value> =
-        include_str!("fixtures/site-captures/panel-a3-listen.jsonl")
-            .lines()
-            .map(|s| hap::serde_json::from_str(s).unwrap())
-            .collect();
-    assert_eq!(rows.last().unwrap()["frames"], 24);
-    let raw: Vec<u8> = rows
+fn synthetic_ts6_events_survive_every_fragment_size_without_losing_releases() {
+    let expected_keys = [3, 2, 6, 4, 6, 4, 3, 3, 4, 2, 6, 4];
+    let raw: Vec<u8> = expected_keys
         .iter()
-        .filter(|r| r["event"] == "frame")
-        .flat_map(|r| {
-            r["raw"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|b| u8::try_from(b.as_u64().unwrap()).unwrap())
+        .flat_map(|key| {
+            [0xf1, 0xf2]
+                .into_iter()
+                .flat_map(move |value| [0xae, 0x41, 0xd0 + key, value, 0xee])
         })
         .collect();
     let mut registry = Registry::for_simulation();
@@ -31,7 +23,6 @@ fn recorded_ts6_events_survive_every_fragment_size_without_losing_releases() {
             .unwrap(),
         )
         .unwrap();
-    let expected_keys = [3, 2, 6, 4, 6, 4, 3, 3, 4, 2, 6, 4];
     for size in 1..=raw.len() {
         let mut decoder = StreamDecoder::default();
         let events: Vec<_> = raw
@@ -56,7 +47,7 @@ fn recorded_ts6_events_survive_every_fragment_size_without_losing_releases() {
                         }
                     );
                 }
-                other => panic!("unexpected recorded event: {other:?}"),
+                other => panic!("unexpected synthetic event: {other:?}"),
             }
         }
     }

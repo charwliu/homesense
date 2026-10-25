@@ -16,19 +16,23 @@ impl Drop for Stop {
 }
 pub async fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().collect();
-    if !(4..=5).contains(&args.len()) || args[3] != "--coexistence-confirmed" {
-        return Err("usage: study-scene STATE_DIR KEY(1|3|5) --coexistence-confirmed [activate|toggle|cancel-before|cancel-after-one]".into());
+    if !(6..=7).contains(&args.len()) || args[5] != "--coexistence-confirmed" {
+        return Err("usage: study-scene DEVICES_JSON SCENES_JSON STATE_DIR KEY(1|3|5) --coexistence-confirmed [activate|toggle|cancel-before|cancel-after-one]".into());
     }
-    let key: u8 = args[2].parse().map_err(|_| "invalid key")?;
+    let key: u8 = args[4].parse().map_err(|_| "invalid key")?;
     if ![1, 3, 5].contains(&key) {
         return Err("unsupported study scene".into());
     }
-    let action = args.get(4).map(String::as_str).unwrap_or("activate");
+    let action = args.get(6).map(String::as_str).unwrap_or("activate");
     if !["activate", "toggle", "cancel-before", "cancel-after-one"].contains(&action) {
         return Err("unsupported commissioning action".into());
     }
-    let document = include_bytes!("../../../config/scenes/study-commission.json");
-    let config = homesense_config::Configuration::parse(document, ExecutionContext::Live)
+    // Field configurations are supplied locally; none are compiled into this binary.
+    let document =
+        std::fs::read(&args[1]).map_err(|e| format!("read device configuration: {e}"))?;
+    let scene_document =
+        std::fs::read(&args[2]).map_err(|e| format!("read scene configuration: {e}"))?;
+    let config = homesense_config::Configuration::parse(&document, ExecutionContext::Live)
         .map_err(|e| e.to_string())?;
     let panel = DeviceId::new("control4:63:key:1").map_err(|e| e.to_string())?;
     let (_, module) = config.binding(&panel).ok_or("panel missing")?;
@@ -56,7 +60,7 @@ pub async fn run() -> Result<(), String> {
     .await
     .map_err(|e| e.to_string())??;
     let mut drain = stream.try_clone().map_err(|e| e.to_string())?;
-    let directory = PathBuf::from(&args[1]);
+    let directory = PathBuf::from(&args[3]);
     std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
     let database = directory.join("runtime.sqlite");
     let mut store = Store::open(&database).map_err(|e| e.to_string())?;
@@ -69,7 +73,7 @@ pub async fn run() -> Result<(), String> {
         Some(_) => (),
         None => {
             store
-                .publish_configuration(None, document, ExecutionContext::Live, &[])
+                .publish_configuration(None, &document, ExecutionContext::Live, &[])
                 .map_err(|e| e.to_string())?;
         }
     }
@@ -85,7 +89,7 @@ pub async fn run() -> Result<(), String> {
     let mut scene = StudyRuntime::new(
         admission.clone(),
         principal,
-        include_bytes!("../../../config/scenes/study.json"),
+        &scene_document,
         TimingPolicy::ModuleNative,
     )?;
     let run = if action == "toggle" {

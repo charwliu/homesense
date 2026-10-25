@@ -4,24 +4,24 @@ use homesense_core::{
 };
 use homesense_import::semantic::{Binding, compile_event};
 #[test]
-fn original_study_xml_compiles_then_else_and_unknown_without_display_inference() {
+fn synthetic_modes_compile_then_else_and_unknown_without_display_inference() {
     let bindings = [(
-        "63".into(),
+        "fixture-panel".into(),
         Binding {
-            device: DeviceId::new("control4:63").unwrap(),
+            device: DeviceId::new("simulation:panel").unwrap(),
             kind: ModuleKind::Keypad,
         },
     )]
     .into();
     for (mode, xml) in [
-        (1, include_str!("fixtures/study-events/2.xml")),
-        (2, include_str!("fixtures/study-events/6.xml")),
-        (3, include_str!("fixtures/study-events/10.xml")),
+        (1, include_str!("fixtures/synthetic-events/mode-1.xml")),
+        (2, include_str!("fixtures/synthetic-events/mode-2.xml")),
+        (3, include_str!("fixtures/synthetic-events/mode-3.xml")),
     ] {
         let nodes = compile_event(xml, &bindings).unwrap();
         for old in [None, Some(0), Some(1), Some(2), Some(3)] {
             let vars = [(
-                "411".into(),
+                "fixture-mode".into(),
                 Variable {
                     value_type: ValueType::Integer,
                     lifetime: Lifetime::Persistent,
@@ -36,7 +36,7 @@ fn original_study_xml_compiles_then_else_and_unknown_without_display_inference()
                 continue;
             }
             assert_eq!(
-                plan.variables["411"].value,
+                plan.variables["fixture-mode"].value,
                 Some(Value::Integer(if old == Some(mode) { 0 } else { mode }))
             );
             let scene = plan
@@ -52,12 +52,12 @@ fn original_study_xml_compiles_then_else_and_unknown_without_display_inference()
 }
 #[test]
 fn missing_binding_or_unknown_command_never_becomes_noop() {
-    let xml = include_str!("fixtures/study-events/2.xml");
+    let xml = include_str!("fixtures/synthetic-events/mode-1.xml");
     assert!(compile_event(xml, &Default::default()).is_err());
     let bindings = [(
-        "63".into(),
+        "fixture-panel".into(),
         Binding {
-            device: DeviceId::new("control4:63").unwrap(),
+            device: DeviceId::new("simulation:panel").unwrap(),
             kind: ModuleKind::Keypad,
         },
     )]
@@ -263,10 +263,7 @@ fn dimmer_level_comparison_is_strict_and_off_is_zero() {
 
 #[test]
 fn source_timed_ramp_retains_duration_and_emits_disabled_scene_definition() {
-    let evidence:serde_json::Value=serde_json::from_str(include_str!("../../../docs/evidence/stage-d-study/remaining-semantics.json")).unwrap();
-    let program=evidence["programs"].as_array().unwrap().iter().find(|v|v["owner"]=="event:417:2").unwrap();
-    let payload=program["evidence"][0]["source_xml"].as_str().unwrap();
-    let xml=format!("<event><deviceid>417</deviceid><eventid>2</eventid><codeitem><id>46</id><enabled>True</enabled><type>1</type><device>1</device><cmdcond>{payload}</cmdcond><subitems/></codeitem></event>");
+    let xml = include_str!("fixtures/synthetic-ramp.xml").to_owned();
     let bindings=[("1".into(),Binding{device:DeviceId::new("simulation:light").unwrap(),kind:ModuleKind::Dimmer})].into();
     assert!(compile_event(&xml,&bindings).is_err());
     let output=homesense_import::semantic::compile_event_with_fades(&xml,&bindings,100,100).unwrap();
