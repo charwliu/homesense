@@ -425,12 +425,10 @@ struct HomeManagementView: View {
     }
     private var devices: some View {
         VStack(spacing: 16) {
-            if !configurationOnly {
-                Text("面板").font(.title2.bold()).frame(maxWidth: .infinity, alignment: .leading)
-                HomeDeviceCards(home: home, devices: home.dailyPanels, openDetails: { editor = $0 })
-                if let notice = home.unifiedKeypadSupportMessage { Text(notice).font(.caption).foregroundStyle(.secondary) }
-                if home.dailyPanels.isEmpty { Text("暂无当前凭证可见的面板").foregroundStyle(.secondary) }
-            }
+            Text("面板").font(.title2.bold()).frame(maxWidth: .infinity, alignment: .leading)
+            HomeDeviceCards(home: home, devices: home.dailyPanels, openDetails: { editor = $0 })
+            if let notice = home.unifiedKeypadSupportMessage { Text(notice).font(.caption).foregroundStyle(.secondary) }
+            if home.dailyPanels.isEmpty { Text("暂无当前凭证可见的面板").foregroundStyle(.secondary) }
             HStack {
                 Text("DIN 模块").font(.title2.bold())
                 Spacer()
