@@ -1,0 +1,17 @@
+# Install as24-br2.network.d/60-homesense-ipv6-return.conf after substituting
+# the current VLAN4 prefix, server address and NanoPC link-local gateway.
+# Table204 and priority10404 must be unused before installation.
+[Route]
+Destination=<VLAN4_IPV6_PREFIX>/64
+Table=204
+
+[Route]
+Destination=::/0
+Gateway=<NANOPC_VLAN4_LINK_LOCAL>
+GatewayOnLink=yes
+Table=204
+
+[RoutingPolicyRule]
+From=<HOMESENSE_VLAN4_IPV6>/128
+Priority=10404
+Table=204

@@ -35,20 +35,24 @@ display ospfv3 peer
 | --- | --- | --- | --- |
 | 23，NanoPi5 | Trunk | Tagged3，PVID4090 | 关闭 |
 | 24，NanoPC | Trunk | Tagged4，PVID4091 | 关闭 |
-| X1，QNAP A | Trunk | Tagged2／3／100，PVID4093 | 不适用 |
-| X2，QNAP B | Trunk | Tagged2／4／100，PVID4094 | 不适用 |
+| X1，QNAP A | Trunk | Tagged2／3／100，Untagged5，PVID5 | 不适用 |
+| X2，QNAP B | Trunk | Tagged2／4／100，Untagged5，PVID5 | 不适用 |
 | 2，AC100 | Access | 5 | 关闭 |
 | 5，R6S wan | Access | 3 | 关闭 |
 | 6，R6S lan1／br2 | Access | 4 | 关闭 |
 | 15–22，AP | Trunk | Tagged2／3／4／100，管理PVID5 | 按实际供电 |
 
-现用485网关经QNAP A的8号Untagged100接入，核心10号是预留口。Trunk隔离PVID不提供业务三层服务；VLAN4092维护入口单独保留。
+现用485网关经QNAP A的8号Untagged100接入，核心10号是预留口。两台边界上联的隔离PVID不提供业务三层服务；X1／X2的PVID5用于管理网络，VLAN4092维护入口单独保留。
 
 ### QNAP
 
 QSS中T表示Tagged、U表示Untagged，逐VLAN核对成员及PVID。同一Combo光／电侧不能同时占用，10号Combo是核心上联。NAS沿已登记路径使用，X3／X4使用前重新核对；不能按规划图直接迁线。
 
 每次单项保存后读回成员、PVID、链路与错误计数，再验证本地维护入口。未经实机核对，不移动QSS管理CPU到另一VLAN。
+
+两台 QSW-M408-4C／QSS 1.3.0 的管理接入采用 QNAP内部 VLAN1、核心侧 VLAN5：QNAP10号口设置 VLAN1 Untagged、PVID1，保留A侧 Tagged2／3／100与B侧 Tagged2／4／100；6号本地维护口保留 VLAN1 Untagged、PVID1。核心X1／X2已于2026-10-26设置 VLAN5 Untagged、PVID5并保存，移除原端口隔离VLAN4093／4094及VLAN1成员；两口10Gbps、CRC为0，双栈路由邻居为Full。用户修改两台QNAP后，已核对A／B管理地址为`.5.251`／`.5.252`、ARP与对应MAC正确，地址均处于现有DHCP排除区间；核心同网段和VLAN3源地址探测成功。管理Mac取得自动路由后，两台管理页均返回HTTP200。本次没有修改核心ACL；访问范围以现有策略为准。
+
+同日用户修改两台QNAP后，HomeSense与实体按键出现无响应。核查时主服务健康端点为200、PID未变，两台485网关的IP连通、VLAN100的MAC／ARP及核心双栈邻居均正常；从主机到网关的新TCP握手也成功。实际失效的是原有网关TCP连接：仍显示ESTAB，但超过20分钟没有ACK，持续重传且发送队列积压。保留证据后仅清除已核对的旧连接四元组，现有服务自行重连，接收字节持续增长、发送队列归零，用户确认App和实体按键均恢复；未重启E2或网关，未发送人工总线查询或控制测试，X1／X2配置未回退。最初丢包的具体触发原因未证实。排障时需同时检查健康状态、TCP的ACK／重传／收发计数，不能把ping成功或ESTAB单独视为总线连接健康。此恢复动作应按现场PID和四元组重新核对，不复用历史端口号；连接清除工具即使返回0也需检查stderr并验证旧连接消失及新连接收发恢复。
 
 ### AP与SSID
 
@@ -80,7 +84,7 @@ IPv4策略主要位于Vlanif2，IPv6网段对允许位于Vlanif4，Vlanif3附加
 
 模板须结合实际允许矩阵、precedence及当前前缀选择性使用，不能整份下发。保存前后比较受影响方向的应用记录及运行／启动配置。
 
-VLAN3通过DHCP Option121取得`192.168.0.0/24 → 192.168.3.253`、AC专用路由和原默认出口。VLAN100仅允许指定管理终端及已审核服务例外；固定租约与真实源地址不公开。VLAN2允许IPv4访问AC`.5.1/32`。
+VLAN3通过DHCP Option121取得`192.168.0.0/24 → 192.168.3.253`、AC`.5.1/32`、QNAP`.5.251/32`／`.5.252/32`经`.3.253`的路由，默认出口仍为`.3.1`。配置位于NanoPi5的`25-br-lan.network.d/60-ac-route.conf`，使用systemd-networkd的IPv4 DHCP服务；rdhcpd负责IPv6，不能因名称相似而修改其服务代替IPv4 DHCP。2026-10-26新增两台QNAP主机路由时，已备份原文件并设置独立回退，核对Option121完整解码保留原三条路由后重载，服务端健康通过；Mac续租的ACK包含全部五条路由，实际到两台QNAP的路由均为有线接口经核心`.3.253`，网页访问HTTP200，不依赖手动主机路由。VLAN100仅允许指定管理终端及已审核服务例外；固定租约与真实源地址不公开。VLAN2允许IPv4访问AC`.5.1/32`。
 
 ### IPv6前缀与DNS
 
@@ -110,6 +114,8 @@ scutil --dns
 使用不强制绑定接口的新连接跨越拔线／插回测试，同时记录实际IPv4／IPv6出口、A／AAAA查询和HTTPS结果。强制绑定可用于定位，但不能作为系统自动选路通过的依据；新连接成功不保证既有连接无缝迁移。
 
 ## HomeSense入口与冷备
+
+VLAN4 IPv6 回程由 R6S 的`24-br2.network.d/60-homesense-ipv6-return.conf`维护，专用表204／优先级10404仅匹配服务器 VLAN4 地址的/128；本地前缀直连，其他目的经 NanoPC 的链路本地地址，让它的连接跟踪看到完整往返。变更先备份并设独立回退，重载networkd后分别从有线VLAN3和Wi‑Fi VLAN2验证四个HTTPS入口，核对主服务PID／重启次数和网关连接未变。前缀变化时同步替换From与直连前缀，保留既有隔离规则。
 
 独立R6S的两张网卡使用`.3.3`和`.4.4`，不桥接两网。域名`homesense.lab.vixal.xyz`指向`nanopi.lab.vixal.xyz`，两侧DNS发布对应A／AAAA；HTTPS／WSS在TCP8444提供同一服务。
 
