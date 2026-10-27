@@ -484,6 +484,9 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         };
         let target = &plan.targets[index];
         let gateway = target.gateway.clone();
+        if !retry && self.transport.admission().scene_writes_pending(&gateway) {
+            plan.control_opportunity=true;return Ok(());
+        }
         if let Some(pending)=plan.pending.as_ref().filter(|pending|pending.retried) {
             let missing_counts=pending.original_before.iter().filter(|(channel,count)|self.feedback.module_truth().port_observation_count(&target.gateway,target.module.address().get(),*channel).is_none_or(|current|current<=*count)).copied().collect::<Vec<_>>();
             let missing=missing_counts.iter().map(|(channel,_)|*channel).collect::<Vec<_>>();

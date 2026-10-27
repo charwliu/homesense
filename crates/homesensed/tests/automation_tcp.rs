@@ -948,3 +948,14 @@ async fn publication_fixture_same_scene_reaches_wire_when_due_without_cancellati
     let store=homesense_storage::Store::open(root.join("automation-tcp.sqlite")).unwrap();assert_eq!(store.logical_variable(1,"remember").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(17)));
     let sql=rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();assert_eq!(sql.query_row("SELECT count(*) FROM scene_run WHERE definition='later' AND status='commands_written'",[],|r|r.get::<_,i64>(0)).unwrap(),1);assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE intent=x'01025A00' AND status='written'",[],|r|r.get::<_,i64>(0)).unwrap(),1);drop(sql);drop(store);std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn cli_rejects_invalid_or_duplicate_scene_write_modes_before_io() {
+    for flags in [vec!["--scene-write-mode","other"],vec!["--scene-write-mode"],vec!["--scene-write-mode","batch-query","--scene-write-mode","sequential"]] {
+        let root=std::env::temp_dir().join(format!("scene-write-cli-{}",uuid::Uuid::new_v4()));
+        let output=std::process::Command::new(test_cli::binary(env!("CARGO_BIN_EXE_homesensed")))
+            .args(["serve-automation-tcp","missing-device","missing-rules"]).arg(&root).args(["1","--coexistence-confirmed"]).args(flags).output().unwrap();
+        assert!(!output.status.success());assert!(!root.exists());
+        let error=String::from_utf8_lossy(&output.stderr);assert!(error.contains("scene write mode") || error.contains("automation option"),"{error}");
+    }
+}

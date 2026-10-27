@@ -38,6 +38,13 @@ fn settled_feedback_read(store:&Store,configuration:&homesense_config::Configura
     Ok(true)
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SceneWriteMode {
+    #[default]
+    Sequential,
+    /// Requires R818 unsolicited output feedback to have been disabled.
+    BatchQuery,
+}
 #[derive(Clone, Copy)]
 pub struct Options {
     pub context: ExecutionContext,
@@ -46,6 +53,7 @@ pub struct Options {
     pub request_ttl: Duration,
     /// Shared physical write gap, 20 ms..=1 s. Applies to queries and controls.
     pub write_interval: Duration,
+    pub scene_write_mode: SceneWriteMode,
 }
 impl Default for Options {
     fn default() -> Self {
@@ -55,6 +63,7 @@ impl Default for Options {
             command_capacity: 128,
             request_ttl: Duration::from_secs(2),
             write_interval: Duration::from_millis(20),
+            scene_write_mode: SceneWriteMode::Sequential,
         }
     }
 }
@@ -587,6 +596,7 @@ pub struct Admission {
     away_active:Arc<AtomicBool>,
     household_active:Arc<AtomicBool>,
     module_confirmation_active:Arc<AtomicBool>,
+    scene_write_buses:Arc<std::sync::RwLock<std::collections::BTreeSet<String>>>,
     read_authority:Arc<dyn Fn(Uuid)->bool+Send+Sync>,
     away_terminal:tokio::sync::watch::Receiver<()>,
     generations: tokio::sync::watch::Receiver<Option<TaskGeneration>>,
@@ -662,6 +672,8 @@ impl Admission {
         let worker_household_active=household_active.clone();
         let module_confirmation_active=Arc::new(AtomicBool::new(false));
         let worker_module_confirmation_active=module_confirmation_active.clone();
+        let scene_write_buses=Arc::new(std::sync::RwLock::new(std::collections::BTreeSet::new()));
+        let worker_scene_write_buses=scene_write_buses.clone();
         let (away_terminal_updates,away_terminal)=tokio::sync::watch::channel(());
         let observation_invalidation=Arc::new(AtomicU64::new(1));
         let worker_observation_invalidation=observation_invalidation.clone();
@@ -712,7 +724,7 @@ impl Admission {
                     .map_err(|e| e.to_string())?;
                     let durable_configuration = store.active().map_err(|e| e.to_string())?.ok_or("active configuration required")?;
                     let mut component_modes=crate::component_modes::Owner::default();
-                    let mut control_batches=crate::control_batch::Owner::default();
+                    let mut control_batches=crate::control_batch::Owner::new(options.scene_write_mode == SceneWriteMode::BatchQuery);
                     let mut program_activity=crate::program_activity::Owner::default();
                     if let Some(document)=store.active_bundle(options.context).map_err(|e|e.to_string())?.and_then(|b|b.automation){
                         component_modes.synchronize(&mut store,&configuration,&document,&TaskGeneration{boot:worker_boot.clone(),epochs},millis(clock)).map_err(|e|format!("component boot reset: {e:?}"))?;
@@ -890,6 +902,7 @@ impl Admission {
                     if household_sequences.audit(&mut household_context!(),mode_generation.as_ref(),&|id|authorize(id)).is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
                     worker_household_active.store(household_sequences.active(),Ordering::Release);
                     worker_module_confirmation_active.store(control_batches.stages_active(),Ordering::Release);
+                    *worker_scene_write_buses.write().unwrap()=configuration.gateways().keys().filter(|gateway|control_batches.writes_pending(gateway)).cloned().collect();
                     for (reason, ids) in control_batches.invalidated_leds() {
                         if failed { break; }
                         let cancelled = arbiter.cancel_queued_ids_committed(&ids, reason, |rows| {
@@ -1344,6 +1357,7 @@ impl Admission {
                                     job.wires.iter().all(|wire|gateways.as_ref().is_none_or(|g|g.table.ready(wire)))
                                         && job.manual.iter().all(|(id,version)|manual_versions.get(id).copied().unwrap_or(0)==*version));
                                 if away_wait.contains(&gateway) {return Err(WriteStatus::ResourceBusy);}
+                                if control_batches.writes_pending(&gateway) {return Err(WriteStatus::ResourceBusy);}
                                 if !household_sequences.read_allowed(&gateway,address) {return Err(WriteStatus::ResourceBusy);}
                                 if !away_executions.read_allowed(&gateway,address) {return Err(WriteStatus::ResourceBusy);}
                                 let pending=arbiter.has_pending_matching(|command| {
@@ -2455,7 +2469,7 @@ impl Admission {
                                             // Its estimated budget is never permission to
                                             // steal a slot from an unfinished read.
                                             && query_slots.get(&gateway).is_none_or(|slot|slot.active.load(Ordering::Acquire)==0)
-                                            && (command.command!=homesense_core::Command::Query || !query_paused.contains(&gateway)))
+                                            && (command.command!=homesense_core::Command::Query || (!query_paused.contains(&gateway) && !control_batches.writes_before_query(&gateway,command.id))))
 
                                 };
                                 let dispatch = if let Some(phase)=&batch_phase {
@@ -2713,6 +2727,7 @@ impl Admission {
                                     Ok(())
                                 }
                             };
+                            *worker_scene_write_buses.write().unwrap()=configuration.gateways().keys().filter(|gateway|control_batches.writes_pending(gateway)).cloned().collect();
                             let _ = reply.send(result);
                         }
                         Message::Generation(reply) => {
@@ -3145,7 +3160,7 @@ impl Admission {
                                         .is_some_and(|s|s.fades.is_empty() && s.steps.iter().all(|step|step.delay_ms==0))
                                 }else{true};
                                 let confirm_modules=study.is_none() && instant_phase;
-                                let mut feedback_roles = crate::control_batch::feedback_roles_local(&configuration, &batch.intents,local_index);
+                                let mut feedback_roles = crate::control_batch::feedback_roles_for_mode(&configuration, &batch.intents,local_index,options.scene_write_mode == SceneWriteMode::BatchQuery);
                                 if !confirm_modules {for role in &mut feedback_roles {if *role==crate::control_batch::BudgetRole::SequencedLighting {*role=crate::control_batch::BudgetRole::Lighting;}}}
                                 let shared_restore_invalidations=if shared_manual && !batch.intents.iter().any(|i|configuration.composed_resource(&i.device).is_some()) {Default::default()} else {
                                     crate::shared_light::physical_target_invalidations(&configuration,&batch.intents)
@@ -3354,6 +3369,7 @@ impl Admission {
                                         let batch_guards=batch_guard_names.into_iter().filter_map(|name|match store.logical_variable(configuration.revision(),&name){Ok(Some(value))=>Some(Ok(homesense_storage::variables::ReadCheck{revision:configuration.revision(),name,expected_version:value.version})),Ok(None)=>None,Err(_)=>Some(Err(WriteStatus::ServiceCommunicationFailure))}).collect::<Result<Vec<_>,_>>()?;
                                         control_batches.accepted(&configuration,&batch_tickets,TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs},batch.controller,request_source.clone(),batch_guards,&manual_versions,millis(clock),if confirm_modules {options.request_ttl.as_millis() as u64}else{0});
                                         worker_module_confirmation_active.store(control_batches.stages_active(),Ordering::Release);
+                                        *worker_scene_write_buses.write().unwrap()=configuration.gateways().keys().filter(|gateway|control_batches.writes_pending(gateway)).cloned().collect();
                                         let ids = (next_id..end).collect();
                                         next_id = end;
                                         Ok(ids)
@@ -3415,6 +3431,7 @@ impl Admission {
             away_active,
             household_active,
             module_confirmation_active,
+            scene_write_buses,
             read_authority,
             away_terminal,
             generations,
@@ -3613,6 +3630,7 @@ impl Admission {
             && self.generations.borrow().as_ref()==Some(generation)
             && (self.read_authority)(base) && (base==controller || (self.read_authority)(controller))
     }
+    pub(crate) fn scene_writes_pending(&self,gateway:&str)->bool {self.scene_write_buses.read().map_or(true,|buses|buses.contains(gateway))}
     pub(crate) fn module_confirmation_active(&self)->bool {self.module_confirmation_active.load(Ordering::Acquire)}
     pub(crate) fn household_operations_active(&self)->bool {self.household_active.load(Ordering::Acquire)}
     pub(crate) async fn begin_household(&self,generation:TaskGeneration,prepared:crate::household_scene::Prepared,observation:crate::away_execution::Observation,last_frames:BTreeMap<String,u64>,deadline:u64)->Result<crate::household_sequence::Accepted,WriteStatus>{

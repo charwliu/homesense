@@ -66,10 +66,10 @@ impl Refresh {
     }}}
     fn solicited(&self,gateway:&str,address:u8,channel:u8,now:u64)->bool {if self.recent_queries.get(&(gateway.into(),address,channel)).is_some_and(|deadline|now<=*deadline){return true;}self.pending.get(gateway).is_some_and(|pending| {let target=&self.targets[pending.index];target.module.address().get()==address && target.channels.contains(&channel)})}
     pub(super) fn pending(&self)->bool {!self.pending.is_empty()}
-    pub(super) fn blocked(&self,now:u64,gap:u64,background_led_phase:bool,feedback:&Feedback)->BTreeSet<String> {
+    pub(super) fn blocked(&self,now:u64,gap:u64,background_led_phase:bool,feedback:&Feedback,admission:&crate::admission::Admission)->BTreeSet<String> {
         let mut blocked=self.pending.keys().cloned().collect::<BTreeSet<_>>();
         for (i,target) in self.targets.iter().enumerate() {
-            if self.query_allowed(i) && self.ramp_reads.ready(target,now) && !background_led_phase && !self.control_opportunity.contains(&target.gateway) && now.saturating_add(gap)>=self.due[i] && !feedback.query_deferred(&target.gateway,now,self.priority.contains(&i)) {blocked.insert(target.gateway.clone());}
+            if !admission.scene_writes_pending(&target.gateway) && self.query_allowed(i) && self.ramp_reads.ready(target,now) && !background_led_phase && !self.control_opportunity.contains(&target.gateway) && now.saturating_add(gap)>=self.due[i] && !feedback.query_deferred(&target.gateway,now,self.priority.contains(&i)) {blocked.insert(target.gateway.clone());}
         }
         blocked
     }
@@ -184,7 +184,7 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
         let now=self.transport.now_ms();
         let window=self.local_refresh.as_ref().is_some_and(|plan|!self.background_led_phase
             && plan.targets.iter().enumerate().any(|(i,target)|!plan.pending.contains_key(&target.gateway) && plan.query_allowed(i)
-                && !plan.recovery.contains_key(&target.gateway) && plan.due_at(i,self.feedback.module_truth())<=now
+                && !self.transport.admission().scene_writes_pending(&target.gateway) && !plan.recovery.contains_key(&target.gateway) && plan.due_at(i,self.feedback.module_truth())<=now
                 && plan.ramp_reads.ready(target,now) && !self.feedback.query_deferred(&target.gateway,now,plan.priority.contains(&i))));
         let checked=if window {Some(self.local_refresh_receive_window(checked).await?)}else{None};
         let mut plan=self.local_refresh.take().ok_or("local refresh not configured")?;
@@ -298,7 +298,7 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
             }
         }
         for (index,target) in plan.targets.iter().enumerate() {
-            if !plan.query_allowed(index) {continue;}
+            if !plan.query_allowed(index) || self.transport.admission().scene_writes_pending(&target.gateway) {continue;}
             if plan.ramp_reads.ready(target,now)&&!plan.pending.contains_key(&target.gateway)&&!plan.recovery.contains_key(&target.gateway)
                 &&self.transport.local_connected(&target.gateway)&&!self.transport.local_syncing(&target.gateway)
                 &&self.transport.local_idle_stream(&target.gateway)&&!self.feedback.query_deferred(&target.gateway,now,plan.priority.contains(&index))&&now>=plan.due_at(index,self.feedback.module_truth())&&(!plan.round.contains(index)||plan.strict.get(&index).is_some_and(|age|crate::consumer_refresh::due(target,self.feedback.module_truth(),*age)<=now)) {

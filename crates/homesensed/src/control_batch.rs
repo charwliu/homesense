@@ -46,7 +46,11 @@ pub(crate) fn feedback_roles(
 ) -> Vec<BudgetRole> {
     feedback_roles_local(config,intents,None)
 }
+#[cfg(test)]
 pub(crate) fn feedback_roles_local(config:&Configuration,intents:&[homesense_hap::requests::Intent],local:Option<usize>)->Vec<BudgetRole> {
+    feedback_roles_for_mode(config,intents,local,false)
+}
+pub(crate) fn feedback_roles_for_mode(config:&Configuration,intents:&[homesense_hap::requests::Intent],local:Option<usize>,batch_query:bool)->Vec<BudgetRole> {
     let mut result = vec![BudgetRole::Ordinary; intents.len()];
     let mut start = 0;
     while start < intents.len() {
@@ -60,7 +64,7 @@ pub(crate) fn feedback_roles_local(config:&Configuration,intents:&[homesense_hap
             start += 1;
             continue;
         }
-        let sequenced = sequence_modules(config,intents[start..end].iter().map(|i|(&i.device,i.command)));
+        let sequenced = (batch_query && intents[start..end].iter().any(|intent|!class(config,&intent.device,intent.command).unwrap().1)) || sequence_modules(config,intents[start..end].iter().map(|i|(&i.device,i.command)));
         if sequenced || intents[start..end]
             .iter()
             .any(|i| !class(config, &i.device, i.command).unwrap().1)
@@ -323,6 +327,7 @@ struct Gate {
     condition: Option<Condition>,
     stages: Vec<Stage>,
     write_window_ms: u64,
+    batch_write_deadline: Option<u64>,
 }
 impl Gate {
     fn view(&self, id: u64) -> Option<View> {
@@ -362,8 +367,10 @@ pub(crate) struct Owner {
     gates: BTreeMap<u64, Gate>,
     local: BTreeMap<u64,u64>,
     power_leds: std::collections::BTreeSet<DeviceId>,
+    batch_query: bool,
 }
 impl Owner {
+    pub(crate) fn new(batch_query:bool)->Self {Self {batch_query,..Default::default()}}
     /// Retain actual original writes as evidence; do not enqueue them again.
     /// The caller must validate Source/Origin and persist the variable CAS and
     /// LED queue together before installing this prepared gate.
@@ -434,7 +441,7 @@ impl Owner {
             deadline: evidence.deadline, delivery_deadline: Some(send_before),
             ready: Some(BarrierLease { lease: proof.lease().clone(), boot, generation: generation.clone(), deadline: send_before }),
             invalid: false, cancel_reason: homesense_core::queue::CancelReason::RunCancelled,
-            stages:vec![],write_window_ms:0,
+            stages:vec![],write_window_ms:0,batch_write_deadline:None,
             condition: Some(Condition { postconditions: std::iter::once(evidence.effect.after.clone())
                     .chain(evidence.effect.when.clone()).collect(), max_age_ms: evidence.effect.max_age_ms,
                 after: evidence.writes_by_device.clone(), command_fence: evidence.command_fence, owned }),
@@ -459,13 +466,14 @@ impl Owner {
         }
     }
     pub(crate) fn stages_active(&self)->bool {
-        self.gates.values().any(|gate|!gate.invalid && !gate.stages.is_empty())
+        self.gates.values().any(|gate|!gate.invalid && (!gate.stages.is_empty() || gate.batch_write_deadline.is_some()))
     }
     pub(crate) fn write_deadline(&self, id: u64) -> Option<u64> {
         self.local.get(&id).copied().or_else(|| {
             let phase=self.phases.get(&id)?;
             let gate=self.gates.get(&phase.gate?)?;
             if !phase.led {
+                if let Some(deadline)=gate.batch_write_deadline {return Some(deadline.min(gate.deadline));}
                 gate.stages.iter().find(|stage|stage.group==phase.group)?
                     .opened.map(|at|at.saturating_add(gate.write_window_ms).min(gate.deadline))
             } else {gate.delivery_deadline}
@@ -502,7 +510,7 @@ impl Owner {
                     .gates
                     .values()
                     .filter(|g| g.invalid && g.cancel_reason == reason)
-                    .flat_map(|g| g.leds.iter().copied().chain(g.stages.iter().flat_map(|stage|stage.commands.iter().map(|command|command.id))))
+                    .flat_map(|g| g.leds.iter().copied().chain(g.lights.iter().filter(|command|g.batch_write_deadline.is_some() || g.stages.iter().any(|stage|stage.commands.iter().any(|c|c.id==command.id))).map(|command|command.id)))
                     .collect::<std::collections::BTreeSet<_>>();
                 (!ids.is_empty()).then_some((reason, ids))
             })
@@ -511,8 +519,21 @@ impl Owner {
     pub(crate) fn phase(&self, id: u64) -> Option<&Phase> {
         self.phases.get(&id)
     }
+    pub(crate) fn writes_pending(&self,gateway:&str)->bool {
+        self.gates.values().any(|gate|!gate.invalid && gate.batch_write_deadline.is_some()
+            && gate.lights.iter().any(|command|!gate.written.contains_key(&command.id)
+                && self.phases.get(&command.id).is_some_and(|phase|phase.gateway==gateway)))
+    }
+    /// An older explicit query remains a causal boundary; only reads queued
+    /// after a cohort's first control must wait for that cohort's write tail.
+    pub(crate) fn writes_before_query(&self,gateway:&str,query:u64)->bool {
+        self.gates.values().any(|gate|!gate.invalid && gate.batch_write_deadline.is_some()
+            && gate.lights.first().is_some_and(|first|first.id<query)
+            && gate.lights.iter().any(|command|!gate.written.contains_key(&command.id)
+                && self.phases.get(&command.id).is_some_and(|phase|phase.gateway==gateway)))
+    }
     pub(crate) fn control_reply_channels(&self,id:u64,config:&Configuration)->Option<Vec<u8>> {
-        if self.local.contains_key(&id) {return None;}
+        if self.batch_query || self.local.contains_key(&id) {return None;}
         let phase=self.phases.get(&id)?;
         if phase.led {return None;}
         let gate=self.gates.get(&phase.gate?)?;
@@ -532,10 +553,12 @@ impl Owner {
         self.gates.values().any(|gate|gate.lights.iter().any(|command|command.id==id))
     }
     pub(crate) fn eligible(&self, id: u64, now: u64) -> bool {
+        let command_id=id;
         self.phases.get(&id).is_none_or(|p| {
             p.gate.is_none_or(|id| {
                 self.gates.get(&id).is_some_and(|g| {
                     !g.invalid && if p.led {g.ready.as_ref().is_some_and(|lease|lease.valid(now))}
+                    else if g.batch_write_deadline.is_some() {!g.written.contains_key(&command_id)}
                     else {g.stages.iter().find(|stage|stage.group==p.group).is_some_and(|stage|stage.opened.is_some()&&!stage.finished())}
                 })
             })
@@ -579,8 +602,9 @@ impl Owner {
                 .filter(|c| Some(c.id)!=local && class(config, &c.device_id, c.command).unwrap().1)
                 .map(|c| c.id)
                 .collect::<Vec<_>>();
-            let sequenced=write_window_ms>0 && sequence_modules(config,lights.iter().map(|c|(&c.device_id,c.command)));
-            let gated = !lights.is_empty() && (!leds.is_empty() || sequenced);
+            let batch_write=self.batch_query && write_window_ms>0 && !lights.is_empty();
+            let sequenced=!batch_write && write_window_ms>0 && sequence_modules(config,lights.iter().map(|c|(&c.device_id,c.command)));
+            let gated = !lights.is_empty() && (!leds.is_empty() || sequenced || batch_write);
             let first_module=lights.first().and_then(|command|config.binding(&command.device_id)).map(|(_,module)|module.address());
             let mut stages=vec![];
             let mut phase_start = start;
@@ -605,7 +629,7 @@ impl Owner {
                             group: commands[phase_start].id,
                             gateway: gateway.clone(),
                             led,
-                            gate: (gated && (led || sequenced)).then_some(id),
+                            gate: (gated && (led || sequenced || batch_write && Some(command.id)!=local)).then_some(id),
                         },
                     );
                 }
@@ -696,6 +720,7 @@ impl Owner {
                         cancel_reason: homesense_core::queue::CancelReason::RunCancelled,
                         condition: None,
                         stages,write_window_ms,
+                        batch_write_deadline:batch_write.then_some(now.saturating_add(write_window_ms)),
                     },
                 );
             }
@@ -854,7 +879,7 @@ impl Owner {
                     invalid: false,
                     cancel_reason: homesense_core::queue::CancelReason::RunCancelled,
                         condition: None,
-                        stages:vec![],write_window_ms:0,
+                        stages:vec![],write_window_ms:0,batch_write_deadline:None,
                 },
             );
         }
@@ -904,7 +929,9 @@ impl Owner {
             let stage_expired=gate.stages.iter().find(|stage|!stage.finished()).is_some_and(|stage|
                 stage.opened.is_some_and(|at|now>=at.saturating_add(gate.write_window_ms))
                 && stage.commands.iter().any(|command|!gate.written.contains_key(&command.id)));
-            let expired = now >= gate.deadline || stage_expired || gate.delivery_deadline.is_some_and(|deadline| now >= deadline);
+            let batch_expired=gate.batch_write_deadline.is_some_and(|until|now>=until)
+                && gate.lights.iter().any(|command|!gate.written.contains_key(&command.id));
+            let expired = now >= gate.deadline || batch_expired || stage_expired || gate.delivery_deadline.is_some_and(|deadline| now >= deadline);
             if generation != Some(&gate.generation)
                 || expired
                 || !authorized(gate.controller)
@@ -929,7 +956,7 @@ impl Owner {
                     break;
                 }
             }
-            if !gate.stages.is_empty() && !store.keypad_completion_dependencies_current(
+            if (!gate.stages.is_empty() || gate.batch_write_deadline.is_some()) && !store.keypad_completion_dependencies_current(
                 gate.generation.boot_id(),gate.generation.epochs.configuration,
                 gate.lights.iter().map(|c|c.id).min().unwrap(),
                 &gate.lights.iter().map(|c|c.id).collect(),
@@ -1317,6 +1344,7 @@ mod budget_tests {
             device: DeviceId::new("legacy-key-1").unwrap(),
             command: Command::PanelLed(true),
         };
+        assert_eq!(feedback_roles_for_mode(&config,&[led()],None,true),vec![BudgetRole::Ordinary],"batch-query must preserve the ordinary LED-only TTL");
         let query = Intent {
             device: DeviceId::new("fixture-light").unwrap(),
             command: Command::Query,

@@ -69,6 +69,9 @@ impl Harness {
         Self::from_inputs_with_probe(data,rules,None).await
     }
     async fn from_inputs_with_probe(data:Vec<u8>,rules:Json,probe:Option<AuthorizationProbe>)->Self {
+        Self::from_inputs_mode(data,rules,probe,crate::admission::SceneWriteMode::Sequential).await
+    }
+    async fn from_inputs_mode(data:Vec<u8>,rules:Json,probe:Option<AuthorizationProbe>,scene_write_mode:crate::admission::SceneWriteMode)->Self {
         let directory = std::env::temp_dir().join(format!("immediate-scene-{}", Uuid::new_v4()));
         std::fs::create_dir(&directory).unwrap();
         let path = directory.join("runtime.sqlite");
@@ -92,6 +95,7 @@ impl Harness {
             path,
             Options {
                 context: ExecutionContext::Simulation,
+                scene_write_mode,
                 ..Default::default()
             },
             move |id| {
@@ -2883,3 +2887,6 @@ mod hap_room_all_tests;
 
 #[path = "batch_collection_tests.rs"]
 mod batch_collection_tests;
+
+#[path = "batch_query_tests.rs"]
+mod batch_query_tests;

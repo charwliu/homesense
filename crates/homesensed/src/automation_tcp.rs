@@ -110,6 +110,7 @@ pub struct Endpoints {
     pub management:Option<crate::service::WebSettings>,
     pub hap:Option<crate::hap_endpoint::Settings>,
     pub hap_plan:Option<Vec<u8>>,
+    pub scene_write_mode:crate::admission::SceneWriteMode,
 }
 /// Explicit finite or forever mode with a graceful external stop channel.
 #[allow(clippy::too_many_arguments)]
@@ -117,7 +118,7 @@ pub async fn serve_running(devices:&[u8],rules:&[u8],directory:&Path,control:cra
     if let Some(web)=&endpoints.management {if let Some(tls)=&web.tls {tls.validate_address(web.address)?;}else if !web.address.ip().is_loopback() || web.address.port()==0{return Err("plaintext management requires loopback".into());}}
     if endpoints.hap.is_some() && endpoints.management.as_ref().is_some_and(|web|Some(web.address)==endpoints.hap.as_ref().map(|hap|hap.address)){return Err("HAP and Web require distinct endpoints".into());}
     let (publisher,publications)=if endpoints.management.is_some(){let (publisher,receiver)=crate::automation_publication::channel();(Some(publisher),Some(receiver))}else{(None,None)};
-    serve_inner_running(devices,rules,directory,control,coexistence_confirmed,recovery_limit,publications,write_interval,endpoints.management,publisher,endpoints.hap,endpoints.hap_plan,#[cfg(test)] None).await
+    serve_inner_running(devices,rules,directory,control,coexistence_confirmed,recovery_limit,publications,write_interval,endpoints.management,publisher,endpoints.hap,endpoints.hap_plan,endpoints.scene_write_mode,#[cfg(test)] None).await
 }
 fn validate_bridge_plan(plan:&[u8],config:&homesense_config::Configuration,rules:&[u8],web:Option<std::net::SocketAddr>)->Result<(),String> {
     let document=crate::configuration_publish::validate_automation(config,rules,ExecutionContext::Live).map_err(|e|e.to_string())?;
@@ -145,10 +146,10 @@ pub(crate) async fn begin_authorized_handoff_before_deadline(admission:&Admissio
 #[allow(clippy::too_many_arguments)]
 async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,coexistence_confirmed:bool,recovery_limit:u8,publications:Option<crate::automation_publication::Receiver>,write_interval:Duration,management_settings:Option<crate::service::WebSettings>,publisher:Option<crate::automation_publication::Publisher>,hap_settings:Option<crate::hap_endpoint::Settings>,hap_plan:Option<Vec<u8>>,#[cfg(test)] hap_failure_after:Option<Duration>)->Result<(),String> {
     let (_hold,stop)=tokio::sync::watch::channel(false);
-    serve_inner_running(devices,rules,directory,crate::lifecycle::RunControl::new(crate::lifecycle::RunMode::For(duration),stop),coexistence_confirmed,recovery_limit,publications,write_interval,management_settings,publisher,hap_settings,hap_plan,#[cfg(test)] hap_failure_after).await
+    serve_inner_running(devices,rules,directory,crate::lifecycle::RunControl::new(crate::lifecycle::RunMode::For(duration),stop),coexistence_confirmed,recovery_limit,publications,write_interval,management_settings,publisher,hap_settings,hap_plan,crate::admission::SceneWriteMode::Sequential,#[cfg(test)] hap_failure_after).await
 }
 #[allow(clippy::too_many_arguments)]
-async fn serve_inner_running(devices:&[u8],rules:&[u8],directory:&Path,control:crate::lifecycle::RunControl,coexistence_confirmed:bool,recovery_limit:u8,mut publications:Option<crate::automation_publication::Receiver>,write_interval:Duration,mut management_settings:Option<crate::service::WebSettings>,publisher:Option<crate::automation_publication::Publisher>,hap_settings:Option<crate::hap_endpoint::Settings>,hap_plan:Option<Vec<u8>>,#[cfg(test)] hap_failure_after:Option<Duration>)->Result<(),String> {
+async fn serve_inner_running(devices:&[u8],rules:&[u8],directory:&Path,control:crate::lifecycle::RunControl,coexistence_confirmed:bool,recovery_limit:u8,mut publications:Option<crate::automation_publication::Receiver>,write_interval:Duration,mut management_settings:Option<crate::service::WebSettings>,publisher:Option<crate::automation_publication::Publisher>,hap_settings:Option<crate::hap_endpoint::Settings>,hap_plan:Option<Vec<u8>>,scene_write_mode:crate::admission::SceneWriteMode,#[cfg(test)] hap_failure_after:Option<Duration>)->Result<(),String> {
     #[cfg(test)] let mut stop_after_barrier=control.stop_after_barrier.clone();
     #[cfg(test)] let mut queue_stop_before_barrier=control.queue_stop_before_barrier.clone();
     let receipt_policy=management_settings.as_ref().map(|_|crate::web_receipt_policy::Policy::load(directory)).transpose()?;
@@ -191,7 +192,7 @@ async fn serve_inner_running(devices:&[u8],rules:&[u8],directory:&Path,control:c
         let document=crate::configuration_publish::validate_automation(&config,rules,ExecutionContext::Live).map_err(|e|e.to_string())?;
         paired.extend(crate::hap_bridges::prepare(plan,&config,&document,directory).await?.into_iter().map(|bridge|bridge.identity));
     }
-    let admission = Admission::open(path.clone(), Options {write_interval,..Options::default()}, move |id| id == controller || paired.iter().any(|store|store.controller_is_paired(id).unwrap_or(false))).await?;
+    let admission = Admission::open(path.clone(), Options {write_interval,scene_write_mode,..Options::default()}, move |id| id == controller || paired.iter().any(|store|store.controller_is_paired(id).unwrap_or(false))).await?;
     let _guard = Stop(admission.clone());
     let daily_backup=crate::daily_backup::Monitor::default();
     let result = async {
