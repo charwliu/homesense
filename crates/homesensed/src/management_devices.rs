@@ -112,7 +112,7 @@ async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGene
         return Err("device query limit exceeded".into());
     }
     let bundle = admission
-        .automation_bundle(controller, generation.clone())
+        .automation_bundle_shared(controller, generation.clone())
         .await
         .map_err(|e| format!("{e:?}"))?;
     let configured=bundle.configuration.refresh_policy().observation_max_age_ms();
@@ -256,7 +256,7 @@ pub async fn prepare(
     max_age_ms: u64,
 ) -> Result<Batch, String> {
     let bundle = admission
-        .automation_bundle(controller, generation)
+        .automation_bundle_shared(controller, generation)
         .await
         .map_err(|e| format!("{e:?}"))?;
     let (device, module) = bundle

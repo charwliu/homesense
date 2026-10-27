@@ -19,6 +19,8 @@ pub enum Action {
     MotorBinding {controller:Uuid,revision:u64,device:homesense_core::DeviceId},
     ModuleBinding {controller:Uuid,revision:u64,module_id:String,channel:u8},
     ModuleCommand {controller:Uuid,revision:u64,module_id:String,channel:u8,allowed_devices:std::collections::BTreeSet<String>,action:crate::management_devices::DeviceAction},
+    ModuleEvents {controller:Uuid,revision:u64},
+    SampleModules {controller:Uuid,revision:u64,offset:usize,limit:usize},
     Modules {controller:Uuid,revision:u64,offset:usize,limit:usize},
     RunDetails {controller:Uuid,revision:u64,query:homesense_storage::scene_run::Query},
     SceneHistory {controller:Uuid,revision:u64,scene:String,before:Option<homesense_storage::scene_history::Cursor>,limit:usize},
@@ -67,6 +69,7 @@ pub enum Reply {
     ModuleQuery(crate::module_queries::Accepted),
     ModuleQueryStatus(crate::module_queries::Status),
     ModuleBinding(homesense_core::DeviceId),
+    ModuleEvents(Vec<crate::management_modules::Page>),
     Modules(crate::management_modules::Page),
     RunDetails(Option<(String,serde_json::Value)>),
     SceneHistory(homesense_storage::scene_history::Page),
@@ -309,7 +312,7 @@ impl Control {
                 let current=reader.current.lock().map_err(|_|"current state slot poisoned")?.clone();
                 if let Some(current)=current {
                     let scope=match &action {
-                        Action::Devices{controller,revision,..}|Action::DeviceEvents{controller,revision,..}
+                        Action::Devices{controller,revision,..}|Action::DeviceEvents{controller,revision,..}|Action::ModuleEvents{controller,revision}
                         |Action::SceneSelectionDetails{controller,revision}|Action::SceneCatalog{controller,revision,..}
                         |Action::SceneLoadStates{controller,revision,..}|Action::SceneTracking{controller,revision,..}
                         |Action::SceneSwitchStates{controller,revision,..}=>Some((*controller,*revision)),_=>None,
@@ -790,6 +793,11 @@ impl Receiver {
                         if revision!=document.revision {return Err("Away operation revision expired".into());}
                         admission.away_operation_views(controller,self.generation.clone(),lease).await.map(Reply::AwayOperations).map_err(|e|format!("{e:?}"))
                     },
+                    Action::SampleModules {controller,revision,offset,limit} => {
+                        if revision!=document.revision {return Err("module sample revision expired".into());}
+                        crate::management_modules::snapshot_state(admission,controller,self.generation.clone(),feedback,max_age_ms,offset,limit).await.map(Reply::Modules)
+                    },
+                    Action::ModuleEvents {..} => Err("module state publication unavailable".into()),
                     Action::Modules {controller,revision,offset,limit} => {
                         if revision!=document.revision {return Err("module inventory revision expired".into());}
                         crate::management_modules::snapshot(admission,controller,self.generation.clone(),feedback,max_age_ms,offset,limit).await.map(Reply::Modules)
@@ -1035,7 +1043,7 @@ impl Receiver {
                             // Reuse immutable mapping/views only within this
                             // read. Each activity proof is still independently
                             // checked by Admission against current feedback.
-                            let bundle=admission.automation_bundle(controller,self.generation.clone()).await.map_err(|e|format!("load state mapping: {e:?}"))?;
+                            let bundle=admission.automation_bundle_shared(controller,self.generation.clone()).await.map_err(|e|format!("load state mapping: {e:?}"))?;
                             let mut context=crate::scene_tracking::CatalogReadContext::new(&bundle.configuration);
                             for id in components {
                                 if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("load state read expired or abandoned".into());}
@@ -1048,7 +1056,7 @@ impl Receiver {
                         if revision!=document.revision || ids.len()>2048 || ids.iter().collect::<std::collections::BTreeSet<_>>().len()!=ids.len() {return Err("scene catalog revision or scope invalid".into());}
                         let diagnostics=admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("catalog authorization: {e:?}"))?;
                         if !diagnostics.mapping_readable(){return Err("scene catalog runtime not ready".into());}
-                        let bundle=admission.automation_bundle(controller,self.generation.clone()).await.map_err(|e|format!("catalog mapping: {e:?}"))?;
+                        let bundle=admission.automation_bundle_shared(controller,self.generation.clone()).await.map_err(|e|format!("catalog mapping: {e:?}"))?;
                         // Read this catalog's metadata in one bounded actor turn
                         // instead of parking bus processing for one RPC per row.
                         let history_ids=ids.iter().filter(|id|document.scene_execution_kind(id).is_some_and(|kind|kind!=homesense_config::rule_document::SceneExecutionKind::Immediate)).cloned().collect();

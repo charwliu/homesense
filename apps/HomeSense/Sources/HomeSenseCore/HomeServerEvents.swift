@@ -91,7 +91,9 @@ public struct HomeWebSocketTransport: HomeEventTransport {
             }
             let receiver = Task {
                 do {
-                    try await socket.send(.string("{\"cursor\":null}"))
+                    let initial = request.value(forHTTPHeaderField: "X-HomeSense-Module-Events") == "1"
+                        ? "{\"cursor\":null,\"modules\":true}" : "{\"cursor\":null}"
+                    try await socket.send(.string(initial))
                     while !Task.isCancelled {
                         let message = try await socket.receive()
                         initialDeadline.cancel()

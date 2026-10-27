@@ -15,9 +15,31 @@ use uuid::Uuid;
 const PERIOD: Duration = Duration::from_millis(250);
 const MAX_PUBLICATION_AGE: Duration = Duration::from_millis(1500);
 
+#[cfg(test)]
+mod cadence_tests {
+    use super::*;
+
+    #[test]
+    fn slow_pass_does_not_add_another_full_period_to_its_work() {
+        let started = Instant::now() - Duration::from_millis(650);
+        let mut owner = Owner { started: Some(started), ..Default::default() };
+        owner.completed(Ok(Reply::SceneCatalog(BTreeMap::new())));
+        // A second 650ms pass fits the original1.5s freshness bound only
+        // when an overdue producer starts immediately, without another250ms.
+        let next = owner.next.unwrap();
+        assert!(next <= Instant::now(), "slow work must consume, not extend, the cadence");
+        assert!(next + Duration::from_millis(650) < started + MAX_PUBLICATION_AGE);
+        assert_eq!(owner.shared.current().unwrap().started, started,
+            "completion cannot relabel old observations as newly sampled");
+    }
+}
+
 #[derive(Clone, Default)]
 struct Frame {
     devices: Option<crate::management_devices::DeviceSnapshot>,
+    modules: Vec<crate::management_modules::Page>,
+    modules_complete: bool,
+    module_max_age_ms: u64,
     selections: BTreeMap<String, crate::scene_switches::Details>,
     catalog: BTreeMap<String, SceneCatalogEntry>,
     loads: BTreeMap<String, Option<bool>>,
@@ -92,6 +114,7 @@ impl Shared {
             return false;
         };
         match action {
+            Action::ModuleEvents { .. } => current.frame.modules_complete,
             Action::Devices { .. } | Action::DeviceEvents { .. } => current.frame.devices.is_some(),
             Action::SceneSelectionDetails { .. } | Action::SceneSwitchStates { .. } => {
                 current.frame.selections_complete
@@ -172,6 +195,7 @@ impl Shared {
         if !matches!(
             action,
             Action::Devices { .. }
+                | Action::ModuleEvents { .. }
                 | Action::DeviceEvents { .. }
                 | Action::SceneSelectionDetails { .. }
                 | Action::SceneCatalog { .. }
@@ -185,6 +209,13 @@ impl Shared {
             let current = self.current()?;
             let frame = &current.frame;
             match action {
+                Action::ModuleEvents { .. } => {
+                    let mut pages = frame.modules.clone();
+                    for page in &mut pages {
+                        crate::management_modules::expire_page(page, now, frame.module_max_age_ms);
+                    }
+                    Ok(Reply::ModuleEvents(pages))
+                }
                 Action::Devices { ids, .. } => {
                     scoped_devices(frame, ids, now, configuration).map(Reply::Devices)
                 }
@@ -572,6 +603,11 @@ impl Owner {
                 }
                 return self.plan.pop_front();
             }
+            self.frame.module_max_age_ms = self.max_age_ms.min(config.refresh_policy().observation_max_age_ms());
+            let total_modules = config.gateways().values().map(|g| g.modules().len()).sum::<usize>();
+            for offset in (0..total_modules.max(1)).step_by(64) {
+                self.plan.push_back(Action::SampleModules { controller, revision, offset, limit: 64 });
+            }
             self.plan.push_back(Action::SceneSelectionDetails {
                 controller,
                 revision,
@@ -632,6 +668,13 @@ impl Owner {
         }
         match result {
             Ok(Reply::Diagnostics(value)) => self.frame.ready = value.ready(),
+            Ok(Reply::Modules(mut page)) => {
+                // Command history belongs to the explicit management endpoint,
+                // not to the recurring state publication.
+                page.commands.clear();
+                self.frame.modules_complete = page.next_offset.is_none();
+                self.frame.modules.push(page);
+            }
             Ok(Reply::Devices(value)) => {
                 if let Some(publication) = &value.light_publication {
                     self.frame.physical_deadlines = publication
@@ -728,7 +771,10 @@ impl Owner {
             } else {
                 self.shared.invalidate();
             }
-            self.next = Some(Instant::now() + PERIOD);
+            // Count work towards the fixed sampling cadence. Adding PERIOD
+            // after a slow pass creates an avoidable publication-expiry gap.
+            // The publication keeps its original start timestamp and TTL.
+            self.next = Some(started + PERIOD);
         }
     }
 }

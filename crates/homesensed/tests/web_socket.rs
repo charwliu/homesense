@@ -123,10 +123,11 @@ async fn websocket_cookie_resume_origin_and_logout() {
         .await
         .unwrap();
     socket
-        .send(Message::Text(r#"{"cursor":null}"#.into()))
+        .send(Message::Text(r#"{"cursor":null,"modules":true}"#.into()))
         .await
         .unwrap();
     let initial = frame(&mut socket).await;
+    assert!(initial["module_inventory"].is_null(), "member must not receive hardware inventory");
     assert_eq!(initial["reset"], true);
     assert_eq!(initial["devices"].as_array().unwrap().len(), 1);
     socket.close(None).await.unwrap();
@@ -316,4 +317,31 @@ async fn empty_room_directory_is_identical_over_http_wss_and_reconnect_without_e
     let mut resumed=connect(address,&member_cookie,&origin).await.unwrap();resumed.send(Message::Text(serde_json::json!({"cursor":member_frame["cursor"]}).to_string().into())).await.unwrap();let next=frame(&mut resumed).await;
     assert_eq!(next["rooms"],member_rooms["rooms"]);assert_eq!(next["floors"],member_rooms["floors"]);assert!(!next.to_string().contains("hidden:raw"));assert!(!next.to_string().contains("Empty room"));
     resumed.close(None).await.unwrap();service.await.unwrap().unwrap();std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
+async fn administrator_receives_complete_module_state_on_the_existing_socket() {
+    let root=std::env::temp_dir().join(format!("homesense-ws-modules-{}",Uuid::new_v4()));
+    let listener=std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address=listener.local_addr().unwrap();drop(listener);
+    let secret="module-push-admin-synthetic-01234567890123456789";
+    let directory=root.clone();
+    let service=tokio::spawn(async move {
+        homesensed::service::serve_web_simulation(include_bytes!("../../../config/simulation.json"),
+            br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#,
+            &directory,Duration::from_secs(5),homesensed::service::WebSimulation {address,secret:secret.into(),administrator:true,tls:None}).await
+    });
+    for _ in 0..200 {if tokio::net::TcpStream::connect(address).await.is_ok(){break;}tokio::time::sleep(Duration::from_millis(10)).await;}
+    let login=http(address,"POST","/api/v1/session",&format!("Authorization: Bearer {secret}\r\n")).await;
+    let cookie=login.lines().find_map(|l|l.strip_prefix("set-cookie: ")).unwrap().split(';').next().unwrap();
+    let mut socket=connect(address,cookie,&format!("http://{address}")).await.unwrap();
+    socket.send(Message::Text(r#"{"cursor":null,"modules":true}"#.into())).await.unwrap();
+    let initial=frame(&mut socket).await;
+    assert_eq!(initial["type"],"state");
+    assert_eq!(initial["module_inventory"]["current"],true,"{initial}");
+    let pages=initial["module_inventory"]["pages"].as_array().unwrap();assert_eq!(pages.len(),1);
+    assert_eq!(pages[0]["revision"],initial["revision"]);assert!(pages[0]["next_offset"].is_null());
+    assert_eq!(pages[0]["modules"].as_array().unwrap().len(),1);assert!(pages[0]["commands"].as_array().unwrap().is_empty());
+    socket.close(None).await.unwrap();
+    service.await.unwrap().unwrap();std::fs::remove_dir_all(root).unwrap();
 }

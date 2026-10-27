@@ -60,6 +60,9 @@ pub struct Store {
     connection: Connection,
     active_bundle_cache: std::cell::RefCell<Option<automation::CachedBundle>>,
 }
+#[cfg(test)]
+#[path = "bundle_cache_tests.rs"]
+mod bundle_cache_tests;
 fn sql_revision(value: u64) -> Result<i64, Error> {
     if value == 0 {
         return Err(Error::InvalidRevision);

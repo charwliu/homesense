@@ -294,4 +294,63 @@ struct HomePushTests {
         home.disconnect(); #expect(home.awayStatus == nil && home.awayOperations.isEmpty)
     }
 
+    private func moduleFrame(_ on: Bool, sequence: Int64 = 1) -> HomeJSON {
+        var state = frame(30, sequence: sequence, reset: sequence == 1)
+        let slots: [HomeJSON] = (1...8).map { .object(["channel": .integer(Int64($0)), "actual": .object(["on": .bool(on)]), "quality": .string("confirmed")]) }
+        state["module_inventory"] = .object(["current": .bool(true), "pages": .array([.object([
+            "boot": .string("synthetic-boot"), "revision": .string("9007199254740993"), "ready": .bool(true),
+            "transport_epoch": .string("1"), "control_epoch": .string("1"), "observed_transport_epoch": .string("1"),
+            "next_offset": .null, "modules": .array([.object(["module_id": .string("relay"), "gateway": .string("bus"), "address": .string("04"), "profile": .string("r8i8_din_pro_v2_7_7"), "channels": .integer(8), "slots": .array(slots)])])
+        ])])])
+        return state
+    }
+    @Test func moduleStatePushUpdatesCardsWithoutHTTPReadsOrDuplicateInventoryPublications() async throws {
+        let server = HomeTestServer(); await server.setModuleEvents()
+        let events = EventFixture(), home = await connect(server, events)
+        defer { home.disconnect() }
+        try await waitFor { events.count == 1 }
+        #expect(events.lastRequest?.value(forHTTPHeaderField: "X-HomeSense-Module-Events") == "1")
+        try events.push(moduleFrame(false)); try await waitFor { home.moduleInventoryIsCurrent }
+        #expect(home.moduleInventory.first?.dinChannelIndicators.allSatisfy { $0.isOn == false } == true)
+        let reads = await server.captured().count
+        var publications = 0
+        let subscription = home.$moduleInventory.dropFirst().sink { _ in publications += 1 }
+        defer { subscription.cancel() }
+        try events.push(moduleFrame(false, sequence: 2))
+        try await Task.sleep(for: .milliseconds(40))
+        #expect(publications == 0 && !home.loadingModules && home.controlsAvailable)
+        try events.push(moduleFrame(true, sequence: 3))
+        try await waitFor { home.moduleInventory.first?.dinChannelIndicators.first?.isOn == true }
+        #expect(publications == 1 && home.moduleInventoryIsCurrent && !home.loadingModules)
+        #expect(await server.captured().count == reads)
+        #expect(await server.captured().allSatisfy { $0.httpMethod == "GET" && $0.url?.path != "/api/v1/modules" })
+        var missing = moduleFrame(true, sequence: 4)
+        missing["module_inventory"] = .object(["current": .bool(false), "pages": .array([])])
+        try events.push(missing); try await waitFor { !home.moduleInventoryIsCurrent }
+        #expect(home.moduleInventory.count == 1 && home.receivingPush && home.controlsAvailable)
+        try events.push(moduleFrame(true, sequence: 5)); try await waitFor { home.moduleInventoryIsCurrent }
+        #expect(publications == 1, "An unavailable interval must retain card identity and layout")
+        await server.setAdministrator(false); await home.refresh()
+        #expect(home.moduleInventory.isEmpty && !home.canManage)
+        try events.push(moduleFrame(true, sequence: 6)); try await Task.sleep(for: .milliseconds(40))
+        #expect(home.moduleInventory.isEmpty, "A downgraded session cannot restore administrator inventory")
+    }
+    @Test func modulePushRejectsMixedIncompleteOrDuplicatePages() throws {
+        let good = moduleFrame(true)["module_inventory"]
+        let boot = "synthetic-boot", revision = "9007199254740993"
+        #expect(try HomeModulePush(good, boot: boot, revision: revision).modules?.count == 1)
+        for field in ["boot", "revision", "transport_epoch", "next_offset"] {
+            var bad = good
+            var pages = bad["pages"].values
+            pages[0][field] = .string("different")
+            bad["pages"] = .array(pages)
+            #expect(throws: HomeServerError.self) { try HomeModulePush(bad, boot: boot, revision: revision) }
+        }
+        var bad = good
+        var page = bad["pages"].values[0]
+        page["next_offset"] = .integer(1)
+        bad["pages"] = .array([page, good["pages"].values[0]])
+        #expect(throws: HomeServerError.self) { try HomeModulePush(bad, boot: boot, revision: revision) }
+    }
+
 }

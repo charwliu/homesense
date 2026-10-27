@@ -80,6 +80,7 @@ public final class HomeServerStore: ObservableObject {
         if next != sceneActionHints { sceneActionHints = next }
     }
     @Published public private(set) var moduleInventory: [HomePhysicalModule] = []
+    @Published public private(set) var moduleEventsSupported = false
     @Published public private(set) var loadingModules = false
     @Published public private(set) var moduleInventoryMessage = ""
     private var moduleLoadID = UUID()
@@ -158,6 +159,7 @@ public final class HomeServerStore: ObservableObject {
         dailyDevices.filter { $0.raw["kind"].text == "Keypad" && $0.raw["module_id"].text != nil }
     }
     public var physicalHardwareModules: [HomePhysicalModule] { moduleInventory.filter { $0.modelName != nil } }
+    public var moduleInventoryIsCurrent: Bool { moduleInventoryReady && moduleInventoryRevision == revision && moduleInventoryBoot == snapshotBoot && snapshotIsCurrent }
     public var moduleInventoryContext: String { "\(epoch)-\(revision)-\(snapshotBoot)-\(canManage)" }
     public func physicalModule(for panel: HomeRecord) -> HomePhysicalModule? {
         guard let id = panel.raw["module_id"].text else { return nil }
@@ -389,7 +391,7 @@ public final class HomeServerStore: ObservableObject {
         epoch = UUID(); stopEvents(); interfaceMode = .daily
         token = nil; endpoint = nil; connected = false; canManage = false; ordinaryBusy = false
         priorityMotorStops = []; priorityStopGeneration = UUID(); latestPriorityMessage = nil
-        unifiedKeypadActionsSupported = false
+        unifiedKeypadActionsSupported = false; moduleEventsSupported = false
         scenePlacementSupported = false
         devices = []; rooms = []; scenes = []; drafts = []; serverFloors = []; capturedAt = nil; revision = ""
         snapshotBoot = ""; synchronization = "未连接"
@@ -468,7 +470,7 @@ public final class HomeServerStore: ObservableObject {
                     }
                     guard self.eventEpoch == generation, !Task.isCancelled,
                           let endpoint = self.endpoint, let token = self.token else { return }
-                    for try await message in self.eventTransport.events(try endpoint.eventRequest(token: token)) {
+                    for try await message in self.eventTransport.events(try endpoint.eventRequest(token: token, includeModules: self.moduleEventsSupported)) {
                         guard self.eventEpoch == generation, !Task.isCancelled else { return }
                         switch message {
                         case .heartbeat: break // Transport liveness never fabricates device feedback.
@@ -541,6 +543,20 @@ public final class HomeServerStore: ObservableObject {
         else {
             guard case .array(let rows) = frame["away_operations"], rows.count <= 8 else { throw HomeServerError.invalidResponse }
             nextAway = try rows.map { try HomeAwayOperation($0, boot: boot, revision: version) }
+        }
+        let modulePush = frame["module_inventory"]
+        if modulePush != .null, canManage, moduleEventsSupported {
+            let value = try HomeModulePush(modulePush, boot: boot, revision: version)
+            if let modules = value.modules {
+                if moduleInventory != modules { moduleInventory = modules }
+                moduleInventoryRevision = version; moduleInventoryBoot = boot
+                moduleInventoryReady = value.ready
+                if moduleInventoryMessage != "硬件状态由服务端推送。" { moduleInventoryMessage = "硬件状态由服务端推送。" }
+            } else {
+                // Retain the layout, but never present the last sample as live.
+                moduleInventoryReady = false
+                if moduleInventoryMessage != "服务端硬件状态暂不可用，保留历史清单。" { moduleInventoryMessage = "服务端硬件状态暂不可用，保留历史清单。" }
+            }
         }
         let changed = devices != next || scenes != nextScenes || awayOperations != nextAway
         if devices != next { devices = next }
@@ -781,6 +797,8 @@ public final class HomeServerStore: ObservableObject {
         return outcome
     }
     private func updateUnifiedKeypadCapability(_ session: HomeJSON) {
+        let moduleEvents = session["capabilities"]["module_events"]["version"].integerText == "1"
+        if moduleEventsSupported != moduleEvents { moduleEventsSupported = moduleEvents }
         scenePlacementSupported = session["capabilities"]["scene_placement"]["version"].integerText == "1"
         let supported = HomeKeypadActionCapability.supported(session["capabilities"]["keypad_actions"])
         if unifiedKeypadActionsSupported && !supported { clearUnifiedKeypadState() }

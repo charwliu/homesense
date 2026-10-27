@@ -222,7 +222,7 @@ impl Api {
             return response(
                 StatusCode::OK,
                 json!({"can_view_diagnostics":grant.role==crate::web_auth::Role::Administrator,"can_manage_configuration":self.can_manage_configuration(&grant),
-                    "capabilities":{"keypad_actions":{"version":1,"path":"/api/v1/keypad-actions","gestures":["activate"],"indication_schema":1},"scene_placement":{"version":1,"scopes":["room","household","unassigned"]},"scene_lights":{"version":1,"state_source":"device_events"}}}),
+                    "capabilities":{"module_events":{"version":1,"state_source":"current_read_model"},"keypad_actions":{"version":1,"path":"/api/v1/keypad-actions","gestures":["activate"],"indication_schema":1},"scene_placement":{"version":1,"scopes":["room","household","unassigned"]},"scene_lights":{"version":1,"state_source":"device_events"}}}),
             );
         }
         if request.method() == hyper::Method::DELETE && request.uri().path() == "/api/v1/session" {
@@ -1118,7 +1118,7 @@ pub(crate) fn device_json(
     json!({"id":device.id.as_str(),"catalog_visible":device.catalog_visible,"communication_error":device.communication_error,"name":device.name,"room":device.room,"kind":format!("{:?}",device.state.kind),"observed":observed,"reported":reported,"state_authority":if device.recorded {"pending_target"} else {"feedback"},"quality":format!("{:?}",device.state.quality),"availability":device.availability,"action_gate":{"available":device.control_error.is_none() && device.availability.as_ref().is_none_or(|view|view.state=="ready"),"reason":device.control_error},"observed_at_ms":device.state.observed_at_ms,"pending":device.state.pending_command,"version":device.state.version,"motor_calibrated":device.motor_calibrated,"motor_estimate":device.motor_estimate,"can_control":device.control_error.is_none() && (light || device.motor_calibrated) && grant.may_control_device(device.id.as_str())})
 }
 
-fn mask_module_actions(slots: &mut [crate::management_modules::Slot], grant: &crate::web_auth::Grant) {
+pub(crate) fn mask_module_actions(slots: &mut [crate::management_modules::Slot], grant: &crate::web_auth::Grant) {
     for slot in slots {
         if let Some(binding) = &mut slot.binding && !grant.may_control_device(&binding.id) {
             binding.actions.clear();

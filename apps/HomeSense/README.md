@@ -170,3 +170,5 @@ swift test --build-system native --scratch-path "$HOMESENSE_BUILD_ROOT/swift"
 - [项目功能与部署指南](../../README.md)
 - [面板原生接口契约](../../docs/keypad-native-api.md)
 - [Apache License 2.0](../../LICENSE)
+
+配置管理的“设备”页在服务端声明 `module_events` 能力时，通过同一WSS连接接收完整模块状态，不做周期性HTTP读取或485查询；首次状态、变更与恢复由服务端发送。没有此能力的旧服务端仅初次读取，保留“读取硬件清单”手动按钮。模块分页按版本、启动标识和运行代次整体校验后应用，权限撤销立即清除；时间戳增长本身不重发模块卡片。

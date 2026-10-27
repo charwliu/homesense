@@ -83,3 +83,35 @@ public struct HomePhysicalModule: Identifiable, Equatable, Sendable {
         }
     }
 }
+
+/// One complete server-owned publication, never a partially applied page set.
+struct HomeModulePush {
+    let modules: [HomePhysicalModule]?
+    let ready: Bool
+    init(_ value: HomeJSON, boot: String, revision: String) throws {
+        guard case .bool(let current) = value["current"],
+              case .array(let pages) = value["pages"], pages.count <= 256 else { throw HomeServerError.invalidResponse }
+        if !current {
+            guard pages.isEmpty else { throw HomeServerError.invalidResponse }
+            modules = nil; ready = false; return
+        }
+        guard !pages.isEmpty else { throw HomeServerError.invalidResponse }
+        var result: [HomePhysicalModule] = [], seen = Set<String>(), allReady = true
+        let epochs = ["transport_epoch", "control_epoch", "observed_transport_epoch"]
+        for (index, page) in pages.enumerated() {
+            guard page["boot"].text == boot, page["revision"].integerText == revision,
+                  case .bool(let pageReady) = page["ready"],
+                  case .array(let rows) = page["modules"], rows.count <= 64,
+                  epochs.allSatisfy({ page[$0].integerText.flatMap(UInt64.init) != nil && page[$0] == pages[0][$0] }) else { throw HomeServerError.invalidResponse }
+            for row in rows {
+                let module = try HomePhysicalModule(row)
+                guard seen.insert(module.id).inserted else { throw HomeServerError.invalidResponse }
+                result.append(module)
+            }
+            guard index == pages.count - 1 ? page["next_offset"] == .null
+                : page["next_offset"].integerText == String(result.count) && !rows.isEmpty else { throw HomeServerError.invalidResponse }
+            allReady = allReady && pageReady
+        }
+        modules = result; ready = allReady
+    }
+}

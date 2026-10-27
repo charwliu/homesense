@@ -29,7 +29,7 @@ pub struct Slot {
     pub observed_ms: Option<String>,
     pub binding: Option<Binding>,
 }
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct Module {
     pub module_id: Option<String>,
     pub gateway: String,
@@ -48,7 +48,7 @@ pub struct Module {
     pub fresh_responses: usize,
     pub slots: Vec<Slot>,
 }
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct CommandRecord {
     pub command: String,
     pub device: String,
@@ -58,7 +58,7 @@ pub struct CommandRecord {
     pub control_epoch: String,
     pub updated_ms: String,
 }
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct Page {
     pub boot: String,
     pub revision: String,
@@ -319,8 +319,16 @@ pub async fn snapshot(
     offset: usize,
     limit: usize,
 ) -> Result<Page, String> {
+    snapshot_bound(admission,controller,generation,feedback,max_age,offset,limit,true).await
+}
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn snapshot_state(admission:&Admission,controller:Uuid,generation:TaskGeneration,feedback:&Feedback,max_age:u64,offset:usize,limit:usize)->Result<Page,String> {
+    snapshot_bound(admission,controller,generation,feedback,max_age,offset,limit,false).await
+}
+#[allow(clippy::too_many_arguments)]
+async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGeneration,feedback:&Feedback,max_age:u64,offset:usize,limit:usize,include_commands:bool)->Result<Page,String> {
     let bundle = admission
-        .automation_bundle(controller, generation.clone())
+        .automation_bundle_shared(controller, generation.clone())
         .await
         .map_err(|e| format!("{e:?}"))?;
     let diagnostics = admission
@@ -361,7 +369,7 @@ pub async fn snapshot(
         .map(|binding| DeviceId::new(&binding.id).map_err(|e| e.to_string()))
         .collect::<Result<Vec<_>, _>>()?;
     let mut commands = vec![];
-    for chunk in ids.chunks(128) {
+    for chunk in ids.chunks(128).filter(|_| include_commands) {
         commands.extend(
             admission
                 .recent_device_commands(controller, generation.clone(), chunk.to_vec(), 64)
@@ -412,6 +420,29 @@ pub async fn snapshot(
         commands,
         next_offset,
     })
+}
+
+/// Retire real observations against their original time, even when a consumer
+/// reads just before the next fixed producer pass. Never renew feedback here.
+pub(crate) fn expire_page(page: &mut Page, now: u64, max_age: u64) {
+    for module in &mut page.modules {
+        for slot in &mut module.slots {
+            let expired = |at: &Option<String>| at.as_ref().and_then(|at| at.parse::<u64>().ok())
+                .and_then(|at| now.checked_sub(at)).is_none_or(|age| age >= max_age);
+            if slot.quality == "confirmed" && expired(&slot.observed_ms) { slot.quality = "stale"; }
+            if let Some(binding) = &mut slot.binding {
+                if binding.quality == "confirmed" && expired(&binding.observed_ms) { binding.quality = "stale"; }
+                binding.age_ms = binding.observed_ms.as_ref().and_then(|at| at.parse::<u64>().ok())
+                    .and_then(|at| now.checked_sub(at)).map(|age| age.to_string());
+            }
+        }
+        module.fresh_channels = module.slots.iter().filter(|s| s.quality == "confirmed").count();
+        module.fresh_responses = module.slots.iter().filter(|s| s.binding.as_ref().is_some_and(|b| b.quality == "confirmed")).count();
+        if matches!(module.response, "fresh" | "partial" | "unknown_or_stale") {
+            module.response = if module.fresh_responses == module.queryable_bindings { "fresh" }
+                else if module.fresh_responses > 0 { "partial" } else { "unknown_or_stale" };
+        }
+    }
 }
 
 /// A logical DeviceId is only the binding adapter for this physical channel.

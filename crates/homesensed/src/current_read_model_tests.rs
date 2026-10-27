@@ -82,6 +82,8 @@ async fn zero_one_and_many_consumers_never_start_projection_or_bus_work() {
         let frozen = h.receiver.current_model_samples();
         for _ in 0..100 {
             h.control.request(devices(&h, h.member)).await.unwrap();
+            let Reply::ModuleEvents(pages) = h.control.request(Action::ModuleEvents {controller:h.member,revision:1}).await.unwrap() else {panic!("module publication")};
+            assert!(!pages.is_empty() && pages.iter().all(|page| page.commands.is_empty()));
         }
         assert_eq!(
             h.receiver.current_model_samples(),
@@ -458,5 +460,25 @@ async fn protected_operations_skip_catalog_work_and_publish_before_terminal_wake
     );
     assert!(!rows["act"].action_gate.available);
     assert_eq!(h.count("command_journal"), 0);
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn module_publication_retires_original_feedback_and_keeps_the_read_budget() {
+    let mut h=Harness::new(rules()).await;h.samples(true);
+    let _stop=enable(&mut h).await;
+    let start=tokio::time::Instant::now();
+    let Reply::ModuleEvents(mut pages)=h.control.request(Action::ModuleEvents {controller:h.member,revision:1}).await.unwrap() else {panic!("modules")};
+    assert!(start.elapsed()<Duration::from_millis(500));
+    let page=&mut pages[0];let slot=&mut page.modules[0].slots[0];
+    slot.quality="confirmed";slot.observed_ms=Some("100".into());
+    crate::management_modules::expire_page(page,5099,5000);assert_eq!(page.modules[0].slots[0].quality,"confirmed");
+    crate::management_modules::expire_page(page,5100,5000);assert_eq!(page.modules[0].slots[0].quality,"stale");
+    assert_eq!(page.modules[0].slots[0].observed_ms.as_deref(),Some("100"));
+    let before=h.receiver.current_model_samples();h.allowed.store(false,Ordering::Release);
+    assert!(h.control.request(Action::ModuleEvents {controller:h.member,revision:1}).await.is_err());
+    h.allowed.store(true,Ordering::Release);
+    assert!(h.control.request(Action::ModuleEvents {controller:h.member,revision:2}).await.is_err());
+    assert_eq!(before,h.receiver.current_model_samples());assert_eq!(h.count("command_journal"),0);assert!(h.wire().await.is_empty());
     h.finish().await;
 }

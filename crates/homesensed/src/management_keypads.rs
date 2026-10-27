@@ -67,7 +67,7 @@ pub(crate) async fn prepare(
     }
     let allowed=source.devices();
     let bundle = admission
-        .automation_bundle(controller, generation)
+        .automation_bundle_shared(controller, generation)
         .await
         .map_err(|e| format!("{e:?}"))?;
     let parent = DeviceId::new(id).map_err(|e| e.to_string())?;

@@ -445,7 +445,7 @@ enum Message {
     ConfigurationHistory(Uuid, TaskGeneration, Option<u64>, usize, oneshot::Sender<Result<homesense_storage::configuration_history::Page, WriteStatus>>),
     PublicationBundle(Uuid, oneshot::Sender<Result<(homesense_storage::automation::Bundle, ExecutionContext, u64), WriteStatus>>),
     PublicationState(oneshot::Sender<bool>),
-    AutomationBundle(Uuid, TaskGeneration, oneshot::Sender<Result<homesense_storage::automation::Bundle, WriteStatus>>),
+    AutomationBundle(Uuid, TaskGeneration, oneshot::Sender<Result<Arc<homesense_storage::automation::Bundle>, WriteStatus>>),
     IndicatorOutputs(Uuid,TaskGeneration,Vec<homesense_core::DeviceId>,Vec<u64>,oneshot::Sender<Result<crate::indicator_outputs::Capture,WriteStatus>>),
     KeypadIndications(Uuid,TaskGeneration,Vec<homesense_core::DeviceId>,oneshot::Sender<Result<BTreeMap<homesense_core::DeviceId,crate::keypad_actions::Indication>,WriteStatus>>),
     ValidateKeypadEvent(Uuid,TaskGeneration,crate::source_auth::EventEvidence,oneshot::Sender<Result<(),WriteStatus>>),
@@ -1396,7 +1396,7 @@ impl Admission {
                             let result=(|| {
                                 if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges)}
                                 if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs {return Err(WriteStatus::ServiceCommunicationFailure)}
-                                let bundle=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::ServiceCommunicationFailure)?;
+                                let bundle=store.active_bundle_shared(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::ServiceCommunicationFailure)?;
                                 if bundle.configuration.revision()!=generation.epochs.configuration {return Err(WriteStatus::ServiceCommunicationFailure)}
                                 Ok(bundle)
                             })();
@@ -3759,6 +3759,11 @@ impl Admission {
         receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
     pub(crate) async fn automation_bundle(&self, controller: Uuid, generation: TaskGeneration) -> Result<homesense_storage::automation::Bundle, WriteStatus> {
+        self.automation_bundle_shared(controller, generation).await.map(|bundle| (*bundle).clone())
+    }
+    /// Immutable definitions only; every request retains the actor's live
+    /// controller/generation/storage checks. No runtime state is shared here.
+    pub(crate) async fn automation_bundle_shared(&self, controller: Uuid, generation: TaskGeneration) -> Result<Arc<homesense_storage::automation::Bundle>, WriteStatus> {
         let (reply,receive)=oneshot::channel();
         self.sender.try_send(Message::AutomationBundle(controller,generation,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?

@@ -474,11 +474,9 @@ struct HomeManagementView: View {
             }
         }
         .task(id: home.moduleInventoryContext) {
-            await home.loadPhysicalModules()
-            while !Task.isCancelled {
-                do { try await Task.sleep(for: .seconds(15)) } catch { break }
-                if home.snapshotIsCurrent { await home.loadPhysicalModules() }
-            }
+            // New servers publish this inventory on the same state stream.
+            // Legacy servers get one initial read; refresh remains explicit.
+            if !home.moduleEventsSupported { await home.loadPhysicalModules() }
         }
     }
     private var scenes: some View {
@@ -587,7 +585,7 @@ private struct HomeDINModuleCard: View {
     @ObservedObject var home: HomeServerStore
     let module: HomePhysicalModule
     let openDetails: () -> Void
-    private var hasFeedback: Bool { home.snapshotIsCurrent && module.dinHasFeedback }
+    private var hasFeedback: Bool { home.moduleInventoryIsCurrent && module.dinHasFeedback }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -624,8 +622,8 @@ private struct HomeDINModuleCard: View {
     }
 
     private func channel(_ indicator: HomeDINChannelIndicator) -> some View {
-        let on = home.snapshotIsCurrent ? indicator.isOn : nil
-        let level = home.snapshotIsCurrent ? indicator.brightness : nil
+        let on = home.moduleInventoryIsCurrent ? indicator.isOn : nil
+        let level = home.moduleInventoryIsCurrent ? indicator.brightness : nil
         return VStack(spacing: 4) {
             Text("\(indicator.number)").font(.caption2.monospacedDigit())
             Circle()

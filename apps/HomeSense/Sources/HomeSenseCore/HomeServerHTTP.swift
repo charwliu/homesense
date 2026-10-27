@@ -86,9 +86,10 @@ public struct HomeServerEndpoint: Equatable, Sendable {
         }
         return request
     }
-    public func eventRequest(token: String) throws -> URLRequest {
+    public func eventRequest(token: String, includeModules: Bool = false) throws -> URLRequest {
         var request = try request(path: "/api/v1/events", method: "GET", token: token, body: nil)
         var url = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!
+        if includeModules { request.setValue("1", forHTTPHeaderField: "X-HomeSense-Module-Events") }
         url.scheme = "wss"
         request.url = url.url
         return request

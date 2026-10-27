@@ -5,6 +5,7 @@ import Testing
 actor HomeTestServer: HomeHTTPTransport {
     var requests: [URLRequest] = []
     var administrator = true
+    var moduleEvents = false
     var failAuthentication = false
     var mismatchScenes = false
     var dropWrites = false
@@ -29,6 +30,7 @@ actor HomeTestServer: HomeHTTPTransport {
         "variables": .array([]), "rules": .array([]),
         "immediate_scenes": .array([.object(["id": .string("reading"), "enabled": .bool(false), "review_evidence": .string("Synthetic test only"), "activate": .array([])])])
     ])
+    func setModuleEvents() { moduleEvents = true }
     func setAdministrator(_ value: Bool) { administrator = value }
     func setUnauthorized() { failAuthentication = true }
     func setMismatch() { mismatchScenes = true }
@@ -60,7 +62,7 @@ actor HomeTestServer: HomeHTTPTransport {
         let path = request.url!.path, method = request.httpMethod ?? "GET"
         if method == "POST", dropWrites { throw URLError(.networkConnectionLost) }
         let body = try request.httpBody.map { try JSONDecoder().decode(HomeJSON.self, from: $0) } ?? .null
-        if path == "/api/v1/session" { return try response(.object(["can_manage_configuration": malformedSession ? .null : .bool(administrator)])) }
+        if path == "/api/v1/session" { return try response(.object(["can_manage_configuration": malformedSession ? .null : .bool(administrator), "capabilities": .object(["module_events": moduleEvents ? .object(["version": .integer(1)]) : .null])])) }
         if path == "/api/v1/devices" {
             return try response(.object(["boot": .string("synthetic-boot"), "revision": .integer(active), "revision_text": .string(String(active)),
                 "devices": .array(presentedDevices ?? devicesDocument["devices"].values.map {

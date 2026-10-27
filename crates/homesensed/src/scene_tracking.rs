@@ -419,7 +419,7 @@ async fn read_component_state(
             .await
             .map_err(|e| format!("component activity views: {e:?}"))?;
         let bundle = admission
-            .automation_bundle(controller, generation.clone())
+            .automation_bundle_shared(controller, generation.clone())
             .await
             .map_err(|e| format!("component activity bundle: {e:?}"))?;
         views
@@ -505,7 +505,7 @@ async fn read_inner(
                     .ok()
                 } else {
                     let bundle = admission
-                        .automation_bundle(controller, generation.clone())
+                        .automation_bundle_shared(controller, generation.clone())
                         .await
                         .map_err(|e| format!("program bundle: {e:?}"))?;
                     crate::program_activity::Proof::prepare(
@@ -528,7 +528,7 @@ async fn read_inner(
                     .ok()
                 } else {
                     let bundle = admission
-                        .automation_bundle(controller, generation.clone())
+                        .automation_bundle_shared(controller, generation.clone())
                         .await
                         .map_err(|e| format!("program bundle: {e:?}"))?;
                     crate::program_activity::Proof::prepare_negative(

@@ -14,15 +14,18 @@ pub struct Bundle {
     pub configuration: homesense_config::Configuration,
     pub automation: Option<Document>,
 }
-/// Only validated decoded data is cached. Every lookup still reads both exact
-/// payloads from one current SQLite snapshot; revision alone is never a key.
-/// No variable, observation, pending-command or permission state is cached.
+/// Only validated decoded data is cached. A SQLite snapshot/version fence
+/// detects both local writes and commits by other connections, including
+/// edits at the same revision. Runtime values and permissions are never cached.
 pub(crate) struct CachedBundle {
     revision: i64,
     devices: Vec<u8>,
     rules: Option<Vec<u8>>,
     context: ExecutionContext,
     bundle: Arc<Bundle>,
+    data_version: i64,
+    schema_version: i64,
+    local_changes: u64,
 }
 impl Store {
     pub fn automation_payload(&self, revision: u64) -> Result<Option<Vec<u8>>, Error> {
@@ -68,22 +71,43 @@ impl Store {
         Ok(self.active_bundle_shared(context)?.map(|bundle| (*bundle).clone()))
     }
 
-    /// Share only immutable decoded definitions. Every lookup still checks
-    /// both exact current SQLite payloads and context; a retained Arc is not
-    /// proof of current revision, permission or physical state.
+    /// Share immutable definitions, with the read snapshot established before
+    /// checking SQLite's change counters. Changed counters force both payloads
+    /// to be rechecked; unchanged counters avoid rereading multi-MB blobs.
     pub fn active_bundle_shared(&self, context: ExecutionContext) -> Result<Option<Arc<Bundle>>, Error> {
         let tx = self.connection.unchecked_transaction()?;
+        // Establish the read snapshot before asking for data_version: a commit
+        // between a version read and the first SELECT must not lend an old cache
+        // entry to a new snapshot at the same revision.
+        let revision: Option<i64> = tx.query_row(
+            "SELECT revision FROM active_configuration WHERE singleton=1", [], |r| r.get(0),
+        ).optional()?;
+        let data_version = tx.pragma_query_value(None, "data_version", |r| r.get(0))?;
+        let schema_version = tx.pragma_query_value(None, "schema_version", |r| r.get(0))?;
+        let local_changes = self.connection.total_changes();
+        if let Some(cached) = self.active_bundle_cache.borrow().as_ref()
+            && Some(cached.revision) == revision && cached.context == context
+            && cached.data_version == data_version && cached.schema_version == schema_version
+            && cached.local_changes == local_changes {
+            let bundle = cached.bundle.clone();
+            tx.commit()?;
+            return Ok(Some(bundle));
+        }
         let stored: Option<(i64, Vec<u8>, Option<Vec<u8>>)> = tx.query_row(
             "SELECT c.revision,c.payload,r.payload FROM active_configuration a JOIN configuration_revision c ON c.revision=a.revision LEFT JOIN automation_revision r ON r.revision=c.revision WHERE a.singleton=1",
             [], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?)),
         ).optional()?;
         tx.commit()?;
         let Some((revision, devices, rules)) = stored else {
+            self.active_bundle_cache.replace(None);
             return Ok(None);
         };
-        if let Some(cached)=self.active_bundle_cache.borrow().as_ref()
+        if let Some(cached)=self.active_bundle_cache.borrow_mut().as_mut()
             && cached.revision==revision && cached.context==context
             && cached.devices==devices && cached.rules==rules {
+            cached.data_version = data_version;
+            cached.schema_version = schema_version;
+            cached.local_changes = local_changes;
             return Ok(Some(cached.bundle.clone()));
         }
         // Clear before validating a changed payload or execution context so an
@@ -98,7 +122,7 @@ impl Store {
             .map(|rules| validate(rules, &configuration))
             .transpose()?;
         let bundle=Arc::new(Bundle{configuration,automation});
-        self.active_bundle_cache.replace(Some(CachedBundle{revision,devices,rules,context,bundle:bundle.clone()}));
+        self.active_bundle_cache.replace(Some(CachedBundle{revision,devices,rules,context,bundle:bundle.clone(),data_version,schema_version,local_changes}));
         Ok(Some(bundle))
     }
 }

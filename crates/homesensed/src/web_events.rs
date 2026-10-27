@@ -35,6 +35,21 @@ pub(crate) fn light_projection(snapshot: &crate::management_devices::DeviceSnaps
             (view.id.as_str(), view.recorded, reported)
         }).collect::<Vec<_>>())
 }
+/// Delivery comparison ignores elapsed ages and repeated readback times, while
+/// preserving actual values, quality, bindings, readiness and authorization.
+pub(crate) fn module_projection(mut value: serde_json::Value) -> serde_json::Value {
+    fn stable(value: &mut serde_json::Value) {
+        match value {
+            serde_json::Value::Object(fields) => {
+                for key in ["captured_ms","observed_ms","latest_observed_ms","age_ms"] { fields.remove(key); }
+                for value in fields.values_mut() { stable(value); }
+            }
+            serde_json::Value::Array(values) => for value in values { stable(value); },
+            _ => {},
+        }
+    }
+    stable(&mut value); value
+}
 fn current_grant(api: &Api, headers: &hyper::HeaderMap) -> Option<Grant> {
     if headers.get_all("host").iter().count() != 1
         || headers.get_all("origin").iter().count() != 1
@@ -141,6 +156,8 @@ pub(crate) fn upgrade(
             cursor: Option<Cursor>,
             #[serde(default)]
             interval_ms:Option<u64>,
+            #[serde(default)]
+            modules:bool,
         }
         let Ok(Some(Ok(Message::Text(initial)))) =
             tokio::time::timeout(Duration::from_secs(5), socket.next()).await
@@ -154,6 +171,7 @@ pub(crate) fn upgrade(
         if !(250..=5000).contains(&interval_ms){return;}
         let mut cursor = resume.cursor;
         let mut scenes = serde_json::Value::Null;
+        let mut modules_state=serde_json::Value::Null;
         let mut keypads=serde_json::Value::Null;
         let mut availability=serde_json::Value::Null;
         let mut directory=serde_json::Value::Null;
@@ -254,16 +272,35 @@ pub(crate) fn upgrade(
                     if current_grant(&api,&headers).as_ref()!=Some(&grant) {cursor=None;continue;}
                     if api.runtime.read().ok().is_none_or(|current|current.as_ref().is_none_or(|current|current.revision!=runtime.revision || current.boot!=runtime.boot)){cursor=None;continue;}
                     if current_grant(&api,&headers).as_ref()!=Some(&grant) {cursor=None;continue;}
+                    let next_modules=if resume.modules && grant.role==crate::web_auth::Role::Administrator {
+                        match runtime.control.request(Action::ModuleEvents{controller:grant.controller,revision:runtime.revision}).await {
+                            Ok(Reply::ModuleEvents(mut pages))=>{
+                                for page in &mut pages { for module in &mut page.modules { crate::web_api::mask_module_actions(&mut module.slots,&grant); } }
+                                json!({"current":true,"pages":pages})
+                            },
+                            _=>json!({"current":false,"pages":[]}),
+                        }
+                    }else{serde_json::Value::Null};
+                    let next_modules_projection=module_projection(next_modules.clone());
+                    // The additional read can await a new producer publication.
+                    // Recheck both authority and runtime before sending any data.
+                    if current_grant(&api,&headers).as_ref()!=Some(&grant) {cursor=None;continue;}
+                    if api.runtime.read().ok().is_none_or(|current|current.as_ref().is_none_or(|current|current.revision!=runtime.revision || current.boot!=runtime.boot)){cursor=None;continue;}
                     let next_light_projection=light_projection(&update.snapshot);
                     let next_motor_estimates=json!(update.snapshot.devices.iter().filter(|d|d.motor_estimate.is_some()).map(|d|(d.id.as_str(),&d.motor_estimate)).collect::<Vec<_>>());
                     let next_keypads=json!(update.snapshot.keypads);
                     let next_directory=json!(update.snapshot.directory(api.can_manage_configuration(&grant)));
                     let next_availability=json!(update.snapshot.devices.iter().map(|view|(view.id.as_str(),&view.availability,&view.communication_error)).collect::<Vec<_>>());
-                    if cursor.as_ref()!=Some(&update.cursor) || next_scenes!=scenes || next_motor_estimates!=motor_estimates || next_keypads!=keypads || next_availability!=availability || next_directory!=directory || next_light_projection!=light_projection_state || next_away!=away_operations || next_household!=household_operations || unavailable {
+                    if cursor.as_ref()!=Some(&update.cursor) || next_scenes!=scenes || next_motor_estimates!=motor_estimates || next_keypads!=keypads || next_availability!=availability || next_directory!=directory || next_light_projection!=light_projection_state || next_away!=away_operations || next_household!=household_operations || next_modules_projection!=modules_state || unavailable {
                         let devices=crate::management_keypads::devices_json(&update.snapshot,&grant);
-                        let frame=json!({"type":"state","cursor":update.cursor,"reset":update.reset,"devices":devices,"scenes":next_scenes["scenes"],"revision":next_scenes["revision"],"rooms":next_directory["rooms"],"floors":next_directory["floors"],"away_operations":next_away,"household_operations":next_household}).to_string();
-                        if frame.len()>512*1024 || !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Text(frame.into()))).await,Ok(Ok(()))){break;}
-                        cursor=Some(update.cursor);scenes=next_scenes;motor_estimates=next_motor_estimates;keypads=next_keypads;availability=next_availability;directory=next_directory;light_projection_state=next_light_projection;away_operations=next_away;household_operations=next_household;unavailable=false;last_send=std::time::Instant::now();
+                        let mut frame=json!({"type":"state","cursor":update.cursor,"reset":update.reset,"devices":devices,"scenes":next_scenes["scenes"],"revision":next_scenes["revision"],"rooms":next_directory["rooms"],"floors":next_directory["floors"],"away_operations":next_away,"household_operations":next_household,"module_inventory":if update.reset || next_modules_projection!=modules_state {next_modules}else{serde_json::Value::Null}});
+                        let mut encoded=frame.to_string();
+                        if encoded.len()>512*1024 && !frame["module_inventory"].is_null() {
+                            frame["module_inventory"]=json!({"current":false,"pages":[],"reason":"frame_limit"});
+                            encoded=frame.to_string();
+                        }
+                        if encoded.len()>512*1024 || !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Text(encoded.into()))).await,Ok(Ok(()))){break;}
+                        modules_state=next_modules_projection;cursor=Some(update.cursor);scenes=next_scenes;motor_estimates=next_motor_estimates;keypads=next_keypads;availability=next_availability;directory=next_directory;light_projection_state=next_light_projection;away_operations=next_away;household_operations=next_household;unavailable=false;last_send=std::time::Instant::now();
                     }
                     if last_send.elapsed()>=Duration::from_secs(15) {
                         if !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Ping(Bytes::new()))).await,Ok(Ok(()))){break;}
@@ -281,6 +318,18 @@ pub(crate) fn upgrade(
 mod tests {
     use super::*;
 
+    #[test]
+    fn module_push_compares_actual_quality_and_rights_without_republishing_age_ticks() {
+        let base=json!({"current":true,"pages":[{"captured_ms":"100","modules":[{"latest_observed_ms":"90","slots":[{"actual":{"on":true},"quality":"confirmed","observed_ms":"90","binding":{"age_ms":"10","observed_ms":"90","actions":["power"]}}]}]}]});
+        let mut later=base.clone();
+        later["pages"][0]["captured_ms"]=json!("200");
+        later["pages"][0]["modules"][0]["slots"][0]["binding"]["age_ms"]=json!("110");
+        assert_eq!(module_projection(base.clone()),module_projection(later.clone()));
+        for (field,value) in [("actual",json!({"on":false})),("quality",json!("stale")),("binding",json!({"actions":[]}))] {
+            let mut changed=later.clone();changed["pages"][0]["modules"][0]["slots"][0][field]=value;
+            assert_ne!(module_projection(base.clone()),module_projection(changed));
+        }
+    }
     #[tokio::test(start_paused=true)]
     async fn terminal_update_wakes_all_clients_before_the_periodic_tick() {
         let (sender,receiver)=tokio::sync::watch::channel(());
