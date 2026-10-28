@@ -22,7 +22,7 @@ PRIVATE = ROOT / 'deployment/ngr/private/20261017-all28-takeover-root'
 FIELD = PRIVATE / 'next-release-field-changes-20261020/composed-candidate41'
 LIVE = Path('/Users/liuwei/works/homesense/deployment/ngr/private/20261017-all28-takeover-root/incident-theater-20261023')
 OUT = ROOT / 'output/pdf/HomeSense-Keypad-485-配电间及灯光窗帘通道清单.pdf'
-QA = ROOT / 'tmp/pdfs/channel-report61'
+QA = ROOT / 'tmp/pdfs/channel-report61-readonly-audit'
 QA.mkdir(parents=True, exist_ok=True)
 BASE = QA / 'before-update.pdf'
 
@@ -41,6 +41,20 @@ current_automation = json.loads((CURRENT/'candidate.automation.json').read_text(
 current_result = json.loads((CURRENT/'FINAL-RESULT.json').read_text())
 assert current_config['revision'] == current_automation['configuration_revision'] == current_result['revision'] == 61
 assert current_result['completed'] and current_result['real_actuator_tests'] == 0
+AUDIT = ROOT / 'deployment/ngr/private/20261028-live-scene-document-audit'
+readonly_audit = json.loads((AUDIT/'AUDIT-RESULT.json').read_text())
+readonly_snapshot = json.loads((AUDIT/'LIVE-READONLY.json').read_text())
+assert readonly_audit['passed'] and readonly_audit['revision'] == 61
+assert readonly_audit['affected_panels'] == 5
+assert readonly_audit['printed_labels_compared'] == 30 and readonly_audit['bindings_compared'] == 16
+assert readonly_audit['shared_selection_and_led_bindings_match']
+assert readonly_audit['control_requests'] == readonly_audit['module_queries_sent'] == readonly_audit['hardware_writes_requested'] == 0
+assert all(request['method'] == 'GET' and request['status'] == 200 for request in readonly_snapshot['requests'])
+assert readonly_audit['source_files_match_active_sqlite_configuration']
+assert readonly_audit['live_input_hashes_match_document_generation']
+for name in ['devices', 'automation']:
+    assert hashlib.sha256((CURRENT/f'candidate.{name}.json').read_bytes()).hexdigest() == readonly_snapshot['file_hashes'][name]
+audit_time = readonly_audit['checked_at_local'][:19].replace('T', ' ')
 current_modules = {m['id']:m for g in current_config['gateways']for m in g['modules']}
 assert current_config['gateways'] == config['gateways']
 assert current_config['rooms'] == config['rooms']
@@ -247,7 +261,11 @@ story += [table(['房间 / 场景','开启配方','实体面板键 / HomeKit'],[
  para('入户门1键仅改名“客厅”，仍与其他休闲区日常/主灯键联动；南门口2键由壁灯单独控制改为阳光房日常。入户门2键仍单独控制壁灯，入户门4键及南门口6键仍单独控制吊灯。阳光房两颗场景键在两灯都亮时共同选中；只亮其中一灯时不显示场景选中。'),
  para('两房日常可以同时开启，各自关闭不会关闭另一房。回家配方仍开休闲区日常、阳光房壁灯和吊灯；本次仅调整场景键归属及指示联动，不增加其他负载。','small'),
  para('本轮证据','head'),
- para('rev60/61均已完成本机模拟与部署只读验收；场景读取最大约44ms / 46ms，500ms上限保持。现场实际灯光和实体LED仍按用户操作观察；本次编制文档未发送灯光、窗帘或风机命令。','small'),PageBreak()]
+ para('rev60/61均已完成本机模拟与部署只读验收；场景读取最大约44ms / 46ms，500ms上限保持。现场实际灯光和实体LED仍按用户操作观察；本次编制文档未发送灯光、窗帘或风机命令。','small'),
+ para('现网只读复核 · ' + audit_time + '（北京时间）','head'),
+ para('核对时现网为rev61，配置文件、SQLite活动配置与运行接口一致，配置指纹与清单生成输入相同。'),
+ para('已核对0x56、0x57、0x5A、0x5B、0x5C共5块面板的30个键名、16项动作绑定。日常、全开、娱乐、会客、阳光房日常及回家/关闭配方均与清单一致。'),
+ para('两房日常的独立范围、全开与阳光房的共享选择/LED绑定均一致；35项公共场景、111项HAP配件一致。六项GET均返回200，单次场景目录读取约8ms。只读过程未发送模块查询、LED或灯光/窗帘控制，未重启或修改配置；此结论确认配置与绑定，不代替实体灯光或LED动作验收。','small'),PageBreak()]
 
 panels = sorted(current_config['keypads'], key=lambda p: int(modules[p['module_id']]['address'], 16))
 assert len(panels) == 28 and sum(len(p['keys']) for p in panels) == 168
@@ -363,4 +381,15 @@ report['scene_config_sha256']=hashlib.sha256((CURRENT/'candidate.devices.json').
 report['scene_automation_sha256']=hashlib.sha256((CURRENT/'candidate.automation.json').read_bytes()).hexdigest()
 report['stable_filename_preserved']=str(OUT)
 report['current_panel_labels']={p['id']:[k['label']for k in p['keys']]for p in panels}
+report['readonly_recheck']={
+    'at': readonly_audit['checked_at_local'],
+    'passed': True,
+    'panels': readonly_audit['affected_panels'],
+    'labels': readonly_audit['printed_labels_compared'],
+    'bindings': readonly_audit['bindings_compared'],
+    'compared_pdf_sha256': readonly_audit['pdf_sha256'],
+    'audit_result_sha256': hashlib.sha256((AUDIT/'AUDIT-RESULT.json').read_bytes()).hexdigest(),
+    'control_requests': 0,
+    'module_queries_sent': 0,
+}
 (QA/'verification.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
