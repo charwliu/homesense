@@ -157,23 +157,30 @@ pub(crate) fn coalesce_local_cue(
 /// Stable partition within one already evaluated due phase. Motor/STOP,
 /// parameters and queries remain causal barriers; gateway writes stay separate.
 /// Sources are permuted before durable command IDs are allocated.
-pub(crate) fn partition_local(config:&Configuration,intents:&mut [homesense_hap::requests::Intent],sources:&mut Option<Vec<String>>,local:Option<usize>)->Vec<usize> {
+/// Immediate batch-query lighting preloads dimmers before switching power.
+/// Ramp commands remain barriers; each command class keeps its original order.
+pub(crate) fn partition_local(config:&Configuration,intents:&mut [homesense_hap::requests::Intent],sources:&mut Option<Vec<String>>,local:Option<usize>,dimmers_first:bool)->Vec<usize> {
     let mut permutation = (0..intents.len()).collect::<Vec<_>>();
+    let partitionable = |intent:&homesense_hap::requests::Intent| {
+        class(config,&intent.device,intent.command).is_some()
+            && !(dimmers_first && matches!(intent.command,Command::SetLevel {transition:homesense_core::LevelTransition::Ramp,..}))
+    };
     let mut start = 0;
     while start < intents.len() {
-        let Some(_) = class(config, &intents[start].device, intents[start].command) else {
+        if !partitionable(&intents[start]) {
             start += 1;
             continue;
-        };
+        }
         let mut end = start + 1;
-        while end < intents.len()
-            && class(config, &intents[end].device, intents[end].command).is_some()
-        {
+        while end < intents.len() && partitionable(&intents[end]) {
             end += 1;
         }
         let mut indices = (start..end).collect::<Vec<_>>();
         indices.sort_by_key(|i| {
-            if Some(*i)==local {0} else if class(config, &intents[*i].device, intents[*i].command).unwrap().1 {2} else {1}
+            if Some(*i)==local {0}
+            else if class(config,&intents[*i].device,intents[*i].command).unwrap().1 {3}
+            else if dimmers_first && matches!(intents[*i].command,Command::Switch(_)) {2}
+            else {1}
         });
         let old = indices.iter().map(|i| permutation[*i]).collect::<Vec<_>>();
         for (i, value) in (start..end).zip(old) {

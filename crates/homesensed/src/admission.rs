@@ -3146,9 +3146,6 @@ impl Admission {
                                 let local_index=if phase_links.is_none() {
                                     crate::control_batch::coalesce_local_cue(&configuration,&mut batch.intents,&mut command_sources,local_index)
                                 }else{local_index};
-                                let permutation=crate::control_batch::partition_local(&configuration,&mut batch.intents,&mut command_sources,local_index);
-                                let local_index=local_index.and_then(|index|permutation.iter().position(|original|*original==index));
-                                if phase_links.is_some(){phase_ordinals=permutation.into_iter().map(|i|phase_ordinals[i]).collect();}
                                 // A zero-offset lighting recipe is one action, even
                                 // when its durable receipts use the timeline adapter.
                                 // Real timed/fade programs keep their explicit timing.
@@ -3160,6 +3157,10 @@ impl Admission {
                                         .is_some_and(|s|s.fades.is_empty() && s.steps.iter().all(|step|step.delay_ms==0))
                                 }else{true};
                                 let confirm_modules=study.is_none() && instant_phase;
+                                let dimmers_first=confirm_modules && options.scene_write_mode == SceneWriteMode::BatchQuery;
+                                let permutation=crate::control_batch::partition_local(&configuration,&mut batch.intents,&mut command_sources,local_index,dimmers_first);
+                                let local_index=local_index.and_then(|index|permutation.iter().position(|original|*original==index));
+                                if phase_links.is_some(){phase_ordinals=permutation.into_iter().map(|i|phase_ordinals[i]).collect();}
                                 let mut feedback_roles = crate::control_batch::feedback_roles_for_mode(&configuration, &batch.intents,local_index,options.scene_write_mode == SceneWriteMode::BatchQuery);
                                 if !confirm_modules {for role in &mut feedback_roles {if *role==crate::control_batch::BudgetRole::SequencedLighting {*role=crate::control_batch::BudgetRole::Lighting;}}}
                                 let shared_restore_invalidations=if shared_manual && !batch.intents.iter().any(|i|configuration.composed_resource(&i.device).is_some()) {Default::default()} else {

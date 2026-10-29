@@ -10,6 +10,114 @@ async fn execute(h:&mut Harness) {
     h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
 }
 #[tokio::test]
+async fn batch_query_dimmers_precede_switches_on_wire_and_keep_source_receipts() {
+    for on in [true, false] {
+        let (cfg, mut doc) = writer_batch_inputs();
+        let levels = if on { [20, 40] } else { [10, 0] };
+        doc["immediate_scenes"][0]["activate"] = json!([
+            command("power", "relay", json!({"kind":"switch","on":on})),
+            command("level-first", "light", level(levels[0])),
+            command("peer", "marker", json!({"kind":"switch","on":on})),
+            command("level-final", "light", level(levels[1]))
+        ]);
+        let mut h = Harness::from_inputs_mode(cfg, doc, None, SceneWriteMode::BatchQuery).await;
+        execute(&mut h).await;
+        let (mut owner, calls) = batch_owner(&h, usize::MAX);
+        let write = owner.step().await.unwrap().unwrap();
+        write.result.unwrap();
+        assert_eq!(write.completed.len(), 4);
+        assert_eq!(calls.lock().unwrap().as_slice(), &[vec![
+            0xae, 0x15, 1, levels[0], 0xee,
+            0xae, 0x15, 1, levels[1], 0xee,
+            0xae, 3, 1, if on { 0xf1 } else { 0xf2 }, 0xee,
+            0xae, 3, 2, if on { 0xf1 } else { 0xf2 }, 0xee,
+        ]]);
+        let db = rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap();
+        let sources = {
+            let mut statement = db.prepare("SELECT j.device_id,r.source FROM rule_command r JOIN command_journal j ON j.boot_id=r.boot_id AND j.command_id=r.command_id WHERE j.boot_id=?1 ORDER BY j.command_id").unwrap();
+            statement.query_map([h.actor.boot_id()], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
+                .unwrap().collect::<Result<Vec<_>, _>>().unwrap()
+        };
+        assert_eq!(sources, vec![
+            ("light".into(), "manual-scene/act -> level-first".into()), ("light".into(), "manual-scene/act -> level-final".into()),
+            ("relay".into(), "manual-scene/act -> power".into()), ("marker".into(), "manual-scene/act -> peer".into())
+        ]);
+        drop(db);
+        h.finish().await;
+    }
+}
+#[tokio::test]
+async fn batch_query_logical_supply_preloads_on_and_preserves_power_only_off() {
+    for on in [true, false] {
+        let (cfg, mut doc) = writer_batch_inputs();
+        let mut data: Json = serde_json::from_slice(&cfg).unwrap();
+        data["devices"][0]["supply"] = json!({"module_id":"relay","channel":1});
+        data["devices"][0]["default_on_level"] = json!(100);
+        doc["immediate_scenes"][0]["activate"] = json!([
+            command("logical-light", "light", level(if on { 40 } else { 0 }))
+        ]);
+        let mut h = Harness::from_inputs_mode(serde_json::to_vec(&data).unwrap(), doc, None, SceneWriteMode::BatchQuery).await;
+        execute(&mut h).await;
+        let (mut owner, calls) = batch_owner(&h, usize::MAX);
+        owner.step().await.unwrap().unwrap().result.unwrap();
+        let expected = if on { vec![0xae, 0x15, 1, 40, 0xee, 0xae, 3, 1, 0xf1, 0xee] }
+            else { vec![0xae, 3, 1, 0xf2, 0xee] };
+        assert_eq!(calls.lock().unwrap().as_slice(), &[expected],
+            "ordering must preserve the existing logical-light power-only Off plan");
+        h.finish().await;
+    }
+}
+
+#[tokio::test]
+async fn batch_query_zero_offset_scene_reorders_receipts_but_delayed_scene_retains_order() {
+    for delayed in [false, true] {
+        let (cfg, mut doc) = writer_batch_inputs();
+        let mut steps = doc["immediate_scenes"][0]["activate"].as_array().unwrap().iter()
+            .map(|node| json!({"source":node["source"],"offset_ms":0,"device":node["action"]["device"],"command":node["action"]["command"]}))
+            .collect::<Vec<_>>();
+        if delayed {
+            steps.push(json!({"source":"later","offset_ms":10000,"device":"marker","command":{"kind":"switch","on":false}}));
+        }
+        doc["timed_scenes"] = json!([{"id":"phase","enabled":true,"review_evidence":"synthetic named phase","max_lateness_ms":5000,"steps":steps}]);
+        let h = Harness::from_inputs_mode(cfg, doc, None, SceneWriteMode::BatchQuery).await;
+        let mut runtime = crate::scene_runtime::SceneRuntime::new_named(
+            h.actor.clone(), h.controller, h.document.timed_scenes["phase"].steps.clone(),
+            h.actor.monotonic_ms(), 5000, Some("phase".into())
+        ).await.unwrap();
+        assert_eq!(runtime.poll(h.actor.monotonic_ms()).await.unwrap().unwrap().len(), 7);
+        let store = Store::open(h.directory.join("runtime.sqlite")).unwrap();
+        let rows = store.scene_commands(h.actor.boot_id(), runtime.audit_id(), 0, 128).unwrap();
+        assert_eq!(rows.iter().map(|r| r.step).collect::<Vec<_>>(),
+            if delayed { vec![1, 2, 4, 5, 0, 3, 6] } else { vec![1, 4, 2, 5, 0, 3, 6] });
+        assert_eq!(rows.iter().map(|r| r.source.as_str()).collect::<Vec<_>>(),
+            if delayed { vec!["light/initial", "relay/on", "light/final", "marker/on", "led/a", "led/b", "led/c"] }
+            else { vec!["light/initial", "light/final", "relay/on", "marker/on", "led/a", "led/b", "led/c"] });
+        drop(store);
+        runtime.cancel().await.unwrap();
+        h.finish().await;
+    }
+}
+
+#[tokio::test]
+async fn batch_query_dimmer_prefix_spans_frame_limit_without_interleaved_queries() {
+    let (cfg, mut doc) = writer_batch_inputs();
+    let mut commands = (0..5).map(|n| command(&format!("power/{n}"), "relay", json!({"kind":"switch","on":true}))).collect::<Vec<_>>();
+    commands.extend((1..=35).map(|n| command(&format!("level/{n}"), "light", level(n))));
+    doc["immediate_scenes"][0]["activate"] = json!(commands);
+    let mut h = Harness::from_inputs_mode(cfg, doc, None, SceneWriteMode::BatchQuery).await;
+    execute(&mut h).await;
+    let (mut owner, calls) = batch_owner(&h, usize::MAX);
+    owner.step().await.unwrap().unwrap().result.unwrap();
+    assert!(h.actor.reserve_physical_read("bus".into(),h.actor.monotonic_ms()+500).await.is_err());
+    owner.step().await.unwrap().unwrap().result.unwrap();
+    let actual = calls.lock().unwrap().iter().flat_map(|b| b.as_chunks::<5>().0.iter().copied()).collect::<Vec<_>>();
+    let expected = (1..=35).map(|n| [0xae, 0x15, 1, n, 0xee])
+        .chain((0..5).map(|_| [0xae, 3, 1, 0xf1, 0xee])).collect::<Vec<_>>();
+    assert_eq!(actual, expected);
+    assert!(h.actor.reserve_physical_read("bus".into(),h.actor.monotonic_ms()+500).await.is_ok());
+    h.finish().await;
+}
+#[tokio::test]
 async fn batch_query_collects_all_modules_without_feedback_but_leds_need_actual_final_targets() {
     let mut h=fixture().await;
     mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,40);
