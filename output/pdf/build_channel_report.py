@@ -22,9 +22,16 @@ PRIVATE = ROOT / 'deployment/ngr/private/20261017-all28-takeover-root'
 FIELD = PRIVATE / 'next-release-field-changes-20261020/composed-candidate41'
 LIVE = Path('/Users/liuwei/works/homesense/deployment/ngr/private/20261017-all28-takeover-root/incident-theater-20261023')
 OUT = ROOT / 'output/pdf/HomeSense-Keypad-485-配电间及灯光窗帘通道清单.pdf'
-QA = ROOT / 'tmp/pdfs/channel-report61-readonly-audit'
+QA = ROOT / 'tmp/pdfs/field-acceptance61-confirmed/channel'
 QA.mkdir(parents=True, exist_ok=True)
-BASE = QA / 'before-update.pdf'
+BASE = QA.parent / OUT.name
+field_acceptance = json.loads((ROOT/'docs/leisure-sunroom-field-acceptance.json').read_text())
+assert field_acceptance['configuration_revision'] == 61
+assert field_acceptance['evidence_kind'] == 'user_reported_physical_field_acceptance'
+assert field_acceptance['result'] == 'all_passed'
+assert field_acceptance['total'] == field_acceptance['passed'] == 24
+assert field_acceptance['failed'] == field_acceptance['untested'] == 0
+assert sum(len(group['cases']) for group in field_acceptance['groups']) == 24
 
 config = json.loads((LIVE / 'dining51.devices.json').read_text())
 automation = json.loads((LIVE / 'dining51.automation.json').read_text())
@@ -232,13 +239,14 @@ class Cabinets(Flowable):
         c.setFont('CN', 8); c.setFillColor(GRAY)
         c.drawString(0, 3, '正面相对位置沿用用户确认的柜位；不代表RS485串接顺序。')
 
-story = title('Keypad 485 / 配电间\n灯光与窗帘通道清单', '场景及面板同步至已发布rev61 · 2026-10-28')
+story = title('Keypad 485 / 配电间\n灯光与窗帘通道清单', '场景及面板rev61 · 用户现场确认24项通过：2026-10-29')
 story += [para('本版同步休闲区、阳光房场景及面板按键；六键名称按已发布rev61列示。柜位图、物理供电/调光配对和窗帘通道沿用既有核对记录，验收范围保留原记录；本次文档更新未操作设备。'),
  table(['核查项目','本版记录'],[
  ['配置与面板','场景/按键依据rev61；28块TS6-86面板、168键，按485地址升序排列。入户门1键“客厅”沿用休闲区日常；南门口2键“阳光房”共用入户门3键的阳光房日常。'],
  ['照明与窗帘','12个照明模块、96路输出；11路窗帘。灯光供电/调光表保留既有71条物理配对或单通道记录，未因场景改名调整硬件地址。'],
  ['场景与HomeKit','35项公共场景、111项HAP配件，HomeKit配置号21。休闲区日常HS-89，阳光房日常HS-160；休闲区娱乐HS-94，全部HS-159。既有配对和凭证继续使用。'],
  ['运行与验收','NanoPi运行Release 1f4f32d5，场景采用batch-query。rev60本机38项、rev61本机24项模拟回归通过；均完成两轮96路反馈及HAP/按键只读验收，未自动控制灯光或窗帘。'],
+ ['用户现场验收','2026-10-29用户确认休闲区、阳光房24项实体按键及LED验收全部通过：24通过、0异常、0未测。逐项秒数、具体测试时刻及签名未提供；范围不扩大到其他房间。'],
  ['柜位与方向','保留原模块位置图：面向柜体正面，IMG_6887在左、IMG_6886在右；面向面板，左手为左、右手为右。'],
  ['历史通道记录','逐灯实测、基础验收、既有绑定和用户保留项继续分别标注；其他房间的历史配对关系保留，不扩大为本轮现场通过。'],
  ],[88,WIDTH-88]),
@@ -261,11 +269,14 @@ story += [table(['房间 / 场景','开启配方','实体面板键 / HomeKit'],[
  para('入户门1键仅改名“客厅”，仍与其他休闲区日常/主灯键联动；南门口2键由壁灯单独控制改为阳光房日常。入户门2键仍单独控制壁灯，入户门4键及南门口6键仍单独控制吊灯。阳光房两颗场景键在两灯都亮时共同选中；只亮其中一灯时不显示场景选中。'),
  para('两房日常可以同时开启，各自关闭不会关闭另一房。回家配方仍开休闲区日常、阳光房壁灯和吊灯；本次仅调整场景键归属及指示联动，不增加其他负载。','small'),
  para('本轮证据','head'),
- para('rev60/61均已完成本机模拟与部署只读验收；场景读取最大约44ms / 46ms，500ms上限保持。现场实际灯光和实体LED仍按用户操作观察；本次编制文档未发送灯光、窗帘或风机命令。','small'),
+ para('rev60/61均已完成本机模拟与部署只读验收；场景读取最大约44ms / 46ms，500ms上限保持。实体灯光和LED另按下述用户现场确认记录；本次编制文档未发送控制命令。','small'),
  para('现网只读复核 · ' + audit_time + '（北京时间）','head'),
  para('核对时现网为rev61，配置文件、SQLite活动配置与运行接口一致，配置指纹与清单生成输入相同。'),
  para('已核对0x56、0x57、0x5A、0x5B、0x5C共5块面板的30个键名、16项动作绑定。日常、全开、娱乐、会客、阳光房日常及回家/关闭配方均与清单一致。'),
- para('两房日常的独立范围、全开与阳光房的共享选择/LED绑定均一致；35项公共场景、111项HAP配件一致。六项GET均返回200，单次场景目录读取约8ms。只读过程未发送模块查询、LED或灯光/窗帘控制，未重启或修改配置；此结论确认配置与绑定，不代替实体灯光或LED动作验收。','small'),PageBreak()]
+ para('两房日常的独立范围、全开与阳光房的共享选择/LED绑定均一致；35项公共场景、111项HAP配件一致。六项GET均返回200，单次场景目录读取约8ms。只读过程未发送模块查询、LED或灯光/窗帘控制，未重启或修改配置；此结论确认配置与绑定，不代替实体动作验收。','small'),
+ para('用户现场验收 · 2026-10-29 · 24/24通过','head'),
+ para('D1-D6休闲区日常共享；F1-F6全开双键及切换；S1-S6阳光房双键双灯与单灯反馈；I1-I4两房独立性；R1-R2娱乐/会客回归。用户人工逐项测试并确认全部符合预期：24通过、0异常、0未测。','small'),
+ para('确认涵盖上述灯光配方、跨面板/重复关闭和实体LED联动。逐项响应秒数、具体测试时刻及签名未提供，未代填；其他房间及历史通道验收范围不变。详见固定文件名的独立实体按键与LED现场验收表。','small'),PageBreak()]
 
 panels = sorted(current_config['keypads'], key=lambda p: int(modules[p['module_id']]['address'], 16))
 assert len(panels) == 28 and sum(len(p['keys']) for p in panels) == 168
@@ -392,4 +403,5 @@ report['readonly_recheck']={
     'control_requests': 0,
     'module_queries_sent': 0,
 }
+report['user_reported_field_acceptance'] = field_acceptance
 (QA/'verification.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')

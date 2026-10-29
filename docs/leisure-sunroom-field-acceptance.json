@@ -1,0 +1,25 @@
+{
+  "configuration_revision": 61,
+  "confirmation_date": "2026-10-29",
+  "timezone": "Asia/Shanghai",
+  "evidence_kind": "user_reported_physical_field_acceptance",
+  "user_confirmation": "所有测试都符合预期",
+  "confirmation_scope": "用户明确确认独立现场验收表中的24项全部通过。",
+  "result": "all_passed",
+  "total": 24,
+  "passed": 24,
+  "failed": 0,
+  "untested": 0,
+  "groups": [
+    {"name": "休闲区日常五处共享及重复关闭", "cases": ["D1", "D2", "D3", "D4", "D5", "D6"], "result": "passed"},
+    {"name": "休闲区全开双键联动及日常切换", "cases": ["F1", "F2", "F3", "F4", "F5", "F6"], "result": "passed"},
+    {"name": "阳光房日常双键双灯及单灯反馈", "cases": ["S1", "S2", "S3", "S4", "S5", "S6"], "result": "passed"},
+    {"name": "两房独立性", "cases": ["I1", "I2", "I3", "I4"], "result": "passed"},
+    {"name": "娱乐及会客回归", "cases": ["R1", "R2"], "result": "passed"}
+  ],
+  "measured_response_times_seconds": null,
+  "exact_test_times": null,
+  "tester_signature": null,
+  "assistant_actuator_control_commands_sent": 0,
+  "scope_note": "用户在现场人工逐项测试并确认全部符合预期；未提供逐项响应秒数、具体测试时刻或签名。本记录不扩大到其他房间、窗帘、风机或全部历史通道接线验收。"
+}
