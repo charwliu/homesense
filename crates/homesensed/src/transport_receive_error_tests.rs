@@ -36,6 +36,14 @@ async fn actor() -> (PathBuf, Admission, Uuid) {
 struct Reset(io::ErrorKind);
 impl Read for Reset {
     fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        if self.0 == io::ErrorKind::TimedOut {
+            #[cfg(target_os = "linux")]
+            let etimedout = 110;
+            #[cfg(target_os = "macos")]
+            let etimedout = 60;
+            return Err(io::Error::from_raw_os_error(etimedout));
+        }
         Err(self.0.into())
     }
 }
@@ -80,6 +88,9 @@ async fn reset_kind(audit_failure: bool, kind: io::ErrorKind) -> (bool, bool, bo
     );
     let error = owner.receive("simulation").await.err().unwrap();
     assert!(error.starts_with("receive:"), "{error}");
+    if !audit_failure && kind == io::ErrorKind::TimedOut {
+        assert_eq!(owner.audited_receive_failure_gateway(), Some("simulation"));
+    }
     let state = admission.diagnostics(controller, generation).await.unwrap();
     if let Some(c) = db {
         c.execute_batch("DROP TRIGGER deny_fault_audit").unwrap();
@@ -103,6 +114,18 @@ async fn audited_connection_reset_preserves_actor_for_explicit_fresh_recovery() 
         recovered,
         "trusted fresh supervisor recovery must remain possible"
     );
+}
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[tokio::test]
+async fn kernel_tcp_timeout_preserves_actor_for_fresh_epoch_recovery() {
+    let (failed, stopping, recovered) = reset_kind(false, io::ErrorKind::TimedOut).await;
+    assert!(failed && !stopping && recovered);
+}
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[tokio::test]
+async fn kernel_tcp_timeout_cannot_bypass_failed_fault_audit() {
+    let (failed, stopping, recovered) = reset_kind(true, io::ErrorKind::TimedOut).await;
+    assert!(failed && stopping && !recovered);
 }
 #[tokio::test]
 async fn failed_fault_audit_remains_terminal_even_if_storage_recovers() {

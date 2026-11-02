@@ -723,6 +723,7 @@ version = "0.1.0"
 dependencies = [
  "hb-protocol",
  "homesense-core",
+ "socket2",
 ]
 
 [[package]]

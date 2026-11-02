@@ -723,14 +723,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
                 // cancellation of the admission actor. Audit failure or actual
                 // future cancellation still leaves the guard incomplete.
                 let audited = self.admission.transport_failed().await.is_ok();
-                guard.complete = audited
-                    && matches!(
-                        error.kind(),
-                        std::io::ErrorKind::ConnectionReset
-                            | std::io::ErrorKind::ConnectionAborted
-                            | std::io::ErrorKind::BrokenPipe
-                            | std::io::ErrorKind::NotConnected
-                    );
+                guard.complete = audited && gateway_io::network_read_failure(error.kind());
                 if guard.complete {
                     self.audited_receive_failure = Some(gateway.to_owned());
                 }

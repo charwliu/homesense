@@ -5,6 +5,9 @@ use hb_protocol::{ProtocolError, RawFrame, StreamDecoder, encode_in_context};
 use homesense_core::{Channel, Command, ExecutionContext, ModuleSpec};
 use std::io::{self, Read, Write};
 
+#[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
+mod tcp_health_tests;
+
 /// A bounded write never exceeds 32 physical protocol frames (160 bytes).
 pub const MAX_BATCH_FRAMES: usize = 32;
 pub const MAX_BATCH_BYTES: usize = MAX_BATCH_FRAMES * 5;
@@ -197,6 +200,19 @@ impl Connection<std::net::TcpStream> {
         stream.set_read_timeout(Some(io_timeout.min(std::time::Duration::from_millis(1))))?;
         stream.set_write_timeout(Some(io_timeout))?;
         stream.set_nodelay(true)?;
+        // I/O timeouts bound local syscalls, not delivery to the peer: a write
+        // can succeed into the kernel buffer while the old TCP flow is dead.
+        // Keep healthy, quiet buses open using TCP probes (no protocol query).
+        let socket = socket2::SockRef::from(&stream);
+        let keepalive = socket2::TcpKeepalive::new()
+            .with_time(std::time::Duration::from_secs(30));
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        let keepalive = keepalive
+            .with_interval(std::time::Duration::from_secs(5))
+            .with_retries(3);
+        socket.set_tcp_keepalive(&keepalive)?;
+        #[cfg(target_os = "linux")]
+        socket.set_tcp_user_timeout(Some(std::time::Duration::from_secs(10)))?;
         Ok(Self::new(stream, epoch))
     }
 }
@@ -332,10 +348,12 @@ impl<S: Read + Write> Connection<S> {
             Err(e)
                 if matches!(
                     e.kind(),
-                    io::ErrorKind::WouldBlock
-                        | io::ErrorKind::TimedOut
-                        | io::ErrorKind::Interrupted
-                ) =>
+                    io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
+                ) || (e.kind() == io::ErrorKind::TimedOut
+                    // On Unix SO_RCVTIMEO returns EAGAIN/WouldBlock. A raw
+                    // ETIMEDOUT is a dead TCP connection, not polling idle.
+                    // Kind-only timeouts remain supported for bounded fixtures.
+                    && !(cfg!(unix) && e.raw_os_error().is_some())) =>
             {
                 Ok(Receive::Idle)
             }

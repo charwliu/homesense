@@ -64,6 +64,7 @@ pub(crate) fn network_read_failure(kind: io::ErrorKind) -> bool {
             | io::ErrorKind::ConnectionAborted
             | io::ErrorKind::BrokenPipe
             | io::ErrorKind::NotConnected
+            | io::ErrorKind::TimedOut
     )
 }
 pub(crate) fn network_send_failure(error: &SendError) -> bool {
