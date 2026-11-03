@@ -69,11 +69,13 @@ AP 管理帧使用未标记 VLAN5，业务 SSID 使用对应标签；Trunk 放�
 | VLAN2 ↔ VLAN4 | 允许双向访问，VLAN2公网经 NanoPC |
 | VLAN2 ↔ VLAN3 | 普通访问双向拒绝，保留指定 HomeSense 地址的 TCP8444及回包 |
 | VLAN2 → AC | 允许 IPv4 到`.5.1/32` |
-| VLAN3 → VLAN100 | 仅指定管理终端、DNS回包与现有 HomeSense 服务连接例外，其余按策略拒绝 |
+| VLAN3 → VLAN100 | 指定管理Mac的有线／Wi-Fi单主机例外、DNS回包与现有 HomeSense 服务连接例外，其余按策略拒绝 |
 
 核心固件将 IPv4 与 IPv6 ACL 放在各自支持的 traffic policy 方向，不能混用分类器。IPv4 主要在 Vlanif2，IPv6 网段对允许在 Vlanif4，并保留 Vlanif3 的附加隔离及 Vlanif100 的来源限制。具体 precedence、当前前缀和管理地址例外在维护时逐项核对。
 
 VLAN3 通过 DHCP Option121获得`192.168.0.0/24 → 192.168.3.253`、AC`.5.1/32`及QNAP`.5.251/32`／`.5.252/32`经核心`.3.253`的路由，默认出口仍为`.3.1`。QNAP两条路由于2026-10-26加入NanoPi5现有IPv4 DHCP配置，客户端续租后生效。指定管理终端使用固定租约，真实绑定不公开。路由可达不代表跨网访问已授权。
+
+2026-11-03，为同一管理Mac新增Wi-Fi接口的固定租约和核心单主机例外，原有线接口的租约／权限保留。两接口使用各自MAC和独立地址，均可访问VLAN100全部设备；其他VLAN3来源仍受隔离限制。配置位置、回退与绑定Wi-Fi的实际验收见[维护手册](network-configuration-runbook.md#vlan100维护与恢复)。
 
 ## IPv6、DNS与 HomeSense
 

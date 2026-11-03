@@ -141,6 +141,19 @@ NGR只接收[定时数据备份](../deployment/nanopi/backup/README.md)，服务
 
 ## VLAN100维护与恢复
 
+2026-11-03，本机管理Mac改用Wi-Fi时，访问485网关失败。已核对Option121路由正确、网关及HomeSense正常，原因是核心只允许原有线固定地址，而Wi-Fi使用另一地址。现已新增Wi-Fi单设备例外，与原有线例外并存；真实MAC／源地址与完整变更、回退记录保留在私有`20261103-m4max-wifi-vlan100`证据目录。
+
+| 配置位置 | 本次持久变更 |
+| --- | --- |
+| NanoPi5 `/etc/systemd/network/25-br-lan.network.d/83-m4max-wifi-static-lease.conf` | 新增`DHCPServerStaticLease`，将该Wi-Fi MAC绑定到其原先正在使用的VLAN3地址 |
+| 原`81-m4max-static-lease.conf` | 保留原有线MAC与独立固定地址，不与Wi-Fi共用地址 |
+| 核心ACL3990 | 新增rule6，仅匹配Wi-Fi固定源地址`/32`至`192.168.0.0/24`；原rule5有线例外及其他规则保持 |
+| 核心`V100_OUT4`／Vlanif100 | 保留原许可、拒绝分类器及出方向绑定，新增规则已保存并从启动配置读回 |
+
+DHCP变更前备份现有文件，设置独立回退后只新增租约文件，通过networkd reload／reconfigure加载；原DHCP、Option121路由和其他租约文件哈希均保持。核心变更也设置独立回退，仅允许撤销本次rule6，不移除整条隔离策略。验收后两侧守护均已解除，回退材料保留；地址与MAC变化时须成对核对租约和ACL，不能直接放开整个VLAN3。
+
+验证时有线重新接入，因而明确绑定Wi-Fi `en0`及其源地址：两台485网关及原`.0.236`设备均ping3/3，网关TCP8443空握手成功；未获管理授权的VLAN3测试源仍被拒绝。普通路由仍可优先使用有线，不能用该路径的成功代替Wi-Fi验收。HomeSense PID7249、异常重启0、网关发送队列0；未重启服务，也未发送总线控制。
+
 VLAN100仍有网关等业务依赖，不能直接关闭三层接口、DHCP或标签。迁址、NAS与桌面设备接入按独立维护范围准备接口、地址与回退；依赖清空后才重新审核是否转为纯临时维护网。
 
 临时维护参考[模板](../deployment/network/huawei-vlan100-maintenance.cli.example)，一次接一台缺省地址设备，核对地址冲突；临时地址池不发布网关、DNS或默认路由。结束后停用临时SSID／服务，移除本次新增且无其他依赖的标签，恢复PVID，不将临时开放状态保存为启动默认。
