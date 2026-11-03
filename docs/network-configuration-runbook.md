@@ -102,6 +102,14 @@ IPv4策略主要位于Vlanif2，IPv6网段对允许位于Vlanif4，Vlanif3附加
 
 VLAN3通过DHCP Option121取得`192.168.0.0/24 → 192.168.3.253`、AC`.5.1/32`、QNAP`.5.251/32`／`.5.252/32`经`.3.253`的路由，默认出口仍为`.3.1`。配置位于NanoPi5的`25-br-lan.network.d/60-ac-route.conf`，使用systemd-networkd的IPv4 DHCP服务；rdhcpd负责IPv6，不能因名称相似而修改其服务代替IPv4 DHCP。2026-10-26新增两台QNAP主机路由时，已备份原文件并设置独立回退，核对Option121完整解码保留原三条路由后重载，服务端健康通过；Mac续租的ACK包含全部五条路由，实际到两台QNAP的路由均为有线接口经核心`.3.253`，网页访问HTTP200，不依赖手动主机路由。VLAN100仅允许指定管理终端及已审核服务例外；固定租约与真实源地址不公开。VLAN2允许IPv4访问AC`.5.1/32`。
 
+### 本地广播绕过透明代理
+
+2026-11-03，NanoPi5 的 rproxy 日志显示本地终端向 `255.255.255.255` 的 UDP5683／9500／5050／8099 广播被 TPROXY 接管，出站重发报告 `PermissionDenied`。读取现网确认，原入站规则仅绕过 UDP54321；`mangle_output` 中的广播绕过不能替代 `mangle_prerouting` 的入口排除。NanoPC 也缺少入口排除。
+
+两台出口现均在 `inet ladder mangle_prerouting` 首条设置 `iifname "br-lan" meta nfproto ipv4 fib daddr type broadcast counter return`，统一匹配有限广播和本机路由表识别的子网广播，不限定端口。该规则只退出透明代理链，后续防火墙仍生效；不开放跨VLAN广播转发，不为代理启用广播出站。持久配置为 `/etc/nftables.nft`，仓库模板同步到 rproxy 的 `etc/nftables.nft`。
+
+变更前备份到两机各自的 `/var/backups/homesense-network/20261103-broadcast-bypass`，配置通过 `nft -c`，设置独立5分钟回退后仅原子替换／插入这一条运行规则，未重载完整规则集或重启服务。比较前后链结构确认其余规则不变；NanoPi5 新规则已命中自然广播，NanoPC 初次验收时尚无命中；两台IPv4／IPv6 HTTPS均返回200，rproxy PID与重启计数不变。验收通过后已解除自动回退，保留原配置、回退脚本和私有证据；本次未修改HomeSense程序或执行设备控制。
+
 ### IPv6前缀与DNS
 
 1. PD变化时先按获批流程保护VLAN2 IPv6转发，不让旧ACL错误匹配新前缀。
