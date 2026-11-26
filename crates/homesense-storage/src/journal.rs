@@ -6,6 +6,31 @@ use homesense_core::{
     queue::{Cancellation, Origin, QueuedCommand},
 };
 use rusqlite::{OptionalExtension, TransactionBehavior, params};
+#[cfg(test)]
+mod completion_read_cost_tests {
+    use crate::Store;
+    use homesense_core::DeviceId;
+    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+
+    #[test]
+    fn unrelated_command_history_does_not_make_feedback_reads_scan_the_boot() {
+        let mut store = Store::open(":memory:").unwrap();
+        store.publish(None, 1, b"config", &[]).unwrap();
+        store.connection.execute_batch("WITH RECURSIVE n(v) AS (VALUES(1) UNION ALL SELECT v+1 FROM n WHERE v<10000)
+            INSERT INTO command_journal(boot_id,command_id,revision,device_id,origin,intent,transport_epoch,control_epoch,deadline_ms,updated_ms,status)
+            SELECT 'boot1',v,1,'other-light','hap',x'01010100',1,1,100,10,'observed' FROM n;").unwrap();
+        let work = Arc::new(AtomicUsize::new(0));
+        let count = work.clone();
+        store.connection.progress_handler(100, Some(move || {
+            count.fetch_add(100, Ordering::Relaxed);
+            false
+        })).unwrap();
+        assert!(store.feedback_is_settled_in_epoch("boot1", &DeviceId::new("light").unwrap(), Some(20), 1).unwrap());
+        store.connection.progress_handler(0, None::<fn() -> bool>).unwrap();
+        assert!(work.load(Ordering::Relaxed) < 5000,
+            "a device read must not scan unrelated historical commands: {} VM steps", work.load(Ordering::Relaxed));
+    }
+}
 type CompletionReceipt<'a> = (&'a str, &'a crate::keypad_completion::Commit, Option<&'a dyn Fn() -> u64>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

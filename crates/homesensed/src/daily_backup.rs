@@ -201,37 +201,43 @@ pub async fn run_monitored(
 
 /// Own both futures in the service scope; normal and error exits stop and join
 /// maintenance. Backup failure is reported without turning off device control.
-pub async fn supervise<F>(
+pub fn supervise<F>(
     source: PathBuf,
     context: ExecutionContext,
     service: F,
-) -> Result<(), String>
+) -> impl std::future::Future<Output = Result<(), String>>
 where
     F: std::future::Future<Output = Result<(), String>>,
 {
-    supervise_monitored(source, context, service, Monitor::default()).await
+    supervise_monitored(source, context, service, Monitor::default())
 }
-pub async fn supervise_monitored<F>(
+pub fn supervise_monitored<F>(
     source: PathBuf,
     context: ExecutionContext,
     service: F,
     monitor: Monitor,
-) -> Result<(), String>
+) -> impl std::future::Future<Output = Result<(), String>>
 where
     F: std::future::Future<Output = Result<(), String>>,
 {
-    let (stop, receive) = tokio::sync::watch::channel(false);
-    let (status, mut reports) = tokio::sync::watch::channel(Status::Idle);
-    let maintenance = run_monitored(source, context, receive, status, monitor.clone());
-    let mut service = Box::pin(service);
-    tokio::pin!(maintenance);
-    loop {
-        tokio::select! {
-            result=&mut service=>{let _=stop.send(true);maintenance.await;return result;},
-            _=&mut maintenance=>return Err("daily backup worker stopped unexpectedly".into()),
-            changed=reports.changed()=>{
-                if changed.is_ok() && matches!(*reports.borrow_and_update(),Status::Failed){
-                    eprintln!("HomeSense daily backup failed ({:?}); device service continues; retry in one minute",monitor.report().failure);
+    // Box synchronously, before constructing the async state machine: boxing
+    // inside async fn still leaves its initial state holding the huge raw F.
+    let service = Box::pin(service);
+    async move {
+        let service = crate::history_retention::supervise(source.clone(), service);
+        let (stop, receive) = tokio::sync::watch::channel(false);
+        let (status, mut reports) = tokio::sync::watch::channel(Status::Idle);
+        let maintenance = run_monitored(source, context, receive, status, monitor.clone());
+        let mut service = Box::pin(service);
+        tokio::pin!(maintenance);
+        loop {
+            tokio::select! {
+                result=&mut service=>{let _=stop.send(true);maintenance.await;return result;},
+                _=&mut maintenance=>return Err("daily backup worker stopped unexpectedly".into()),
+                changed=reports.changed()=>{
+                    if changed.is_ok() && matches!(*reports.borrow_and_update(),Status::Failed){
+                        eprintln!("HomeSense daily backup failed ({:?}); device service continues; retry in one minute",monitor.report().failure);
+                    }
                 }
             }
         }

@@ -16,6 +16,7 @@ pub mod scene_observation;
 pub mod scene_initialization;
 pub mod native_scene;
 pub mod keypad_completion;
+pub mod history_retention;
 use homesense_core::queue::CancelReason;
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use std::{path::Path, time::Duration};
@@ -289,6 +290,15 @@ impl Store {
         // schema after migration. The mandatory scope migration above separately
         // advances schema27, which old schema26 programs must reject.
         tx.execute_batch("CREATE INDEX IF NOT EXISTS command_led_request_scope ON command_journal(boot_id,revision,device_id,transport_epoch,control_epoch,command_id DESC) WHERE intent IN (x'01060000',x'01060100',x'010A0000')")?;
+        // Completion fences run for every observed light and scene. Keep each
+        // device read independent of unrelated commands accumulated in a boot.
+        // This covering index changes no rows, audit semantics or schema version.
+        tx.execute_batch("CREATE INDEX IF NOT EXISTS command_feedback_completion ON command_journal(boot_id,device_id,status,transport_epoch,updated_ms)")?;
+        // Retention must prove absence of references without scanning every
+        // command/sample for each candidate. These indexes change no audit rows.
+        tx.execute_batch("CREATE INDEX IF NOT EXISTS command_run_reference ON command_journal(boot_id,run_id) WHERE run_id IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS scene_sample_command_reference ON scene_sample(boot_id,first_command);
+            CREATE INDEX IF NOT EXISTS feedback_command_reference ON feedback_inference(boot_id,command_id)")?;
         keypad_history::install_indexes(&tx)?;
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", "ON")?;

@@ -9,8 +9,9 @@ publish.workspace = true
 [dependencies]
 homesense-core.workspace = true
 homesense-config.workspace = true
-rusqlite.workspace = true
+rusqlite = { workspace = true, features = ["hooks"] }
 serde_json.workspace = true
+sha2 = "=0.10.9"
 
 [dev-dependencies]
 rusqlite = { workspace = true, features = ["hooks"] }
